@@ -1,3 +1,6 @@
+using System;
+using System.Buffers;
+
 namespace Serde.CmdLine;
 
 internal sealed partial class Deserializer : ITypeDeserializer
@@ -35,4 +38,8 @@ internal sealed partial class Deserializer : ITypeDeserializer
     ulong ITypeDeserializer.ReadU64(ISerdeInfo info, int index) => ReadU64();
 
     void ITypeDeserializer.SkipValue(ISerdeInfo info, int index) => _argIndex++;
+    DateTimeOffset ITypeDeserializer.ReadDateTimeOffset(ISerdeInfo info, int index)
+        => ReadDateTimeOffset();
+    void ITypeDeserializer.ReadBytes(ISerdeInfo info, int index, IBufferWriter<byte> writer)
+        => ReadBytes(writer);
 }
