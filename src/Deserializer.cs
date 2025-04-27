@@ -164,7 +164,7 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
     public double ReadF64() => throw new NotImplementedException();
 
     public decimal ReadDecimal() => throw new NotImplementedException();
-    public DateTimeOffset ReadDateTimeOffset() => throw new NotImplementedException();
+    public DateTime ReadDateTime() => throw new NotImplementedException();
     public void ReadBytes(IBufferWriter<byte> writer) => throw new NotImplementedException();
 
     public ITypeDeserializer ReadType(ISerdeInfo typeInfo) => this;
