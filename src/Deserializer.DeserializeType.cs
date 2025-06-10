@@ -41,6 +41,7 @@ internal sealed partial class Deserializer : ITypeDeserializer
 
     DateTime ITypeDeserializer.ReadDateTime(ISerdeInfo info, int index)
         => ReadDateTime();
+
     void ITypeDeserializer.ReadBytes(ISerdeInfo info, int index, IBufferWriter<byte> writer)
         => ReadBytes(writer);
 }
