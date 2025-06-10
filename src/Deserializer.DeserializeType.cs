@@ -38,8 +38,10 @@ internal sealed partial class Deserializer : ITypeDeserializer
     ulong ITypeDeserializer.ReadU64(ISerdeInfo info, int index) => ReadU64();
 
     void ITypeDeserializer.SkipValue(ISerdeInfo info, int index) => _argIndex++;
+
     DateTime ITypeDeserializer.ReadDateTime(ISerdeInfo info, int index)
         => ReadDateTime();
+
     void ITypeDeserializer.ReadBytes(ISerdeInfo info, int index, IBufferWriter<byte> writer)
         => ReadBytes(writer);
 }
