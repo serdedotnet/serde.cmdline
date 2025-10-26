@@ -1,3 +1,4 @@
 ﻿using BenchmarkDotNet.Running;
+using Serde.CmdLine.Benchmarks;
 
-BenchmarkRunner.Run<Serde.CmdLine.Benchmarks.CmdLineBenchmarks>();
+BenchmarkRunner.Run<CmdLineBenchmarks>(args: args);
