@@ -1,26 +1,27 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
-using System.Reflection;
 
 namespace Serde.CmdLine;
 
 internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDeserializer
 {
+    private readonly string[] _args = args;
     private readonly bool _handleHelp = handleHelp;
     private int _argIndex = 0;
     private int _paramIndex = 0;
-    private bool _throwOnMissing = true;
     private readonly List<ISerdeInfo> _helpInfos = new();
 
     public IReadOnlyList<ISerdeInfo> HelpInfos => _helpInfos;
+
+    public ITypeDeserializer ReadType(ISerdeInfo typeInfo) => new DeserializeType(this, typeInfo);
 
     public bool ReadBool()
     {
         // Flags are a little tricky. They can be specified as --flag or '--flag true' or '--flag false'.
         // There's no way to know for sure whether the current argument is a flag or a value, so we'll
         // try to parse it as a bool. If it fails, we'll assume it's a flag and return true.
-        if (_argIndex == args.Length || !bool.TryParse(args[_argIndex], out bool value))
+        if (_argIndex == _args.Length || !bool.TryParse(_args[_argIndex], out bool value))
         {
             return true;
         }
@@ -28,7 +29,7 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
         return value;
     }
 
-    public string ReadString() => args[_argIndex++];
+    public string ReadString() => _args[_argIndex++];
 
     public T ReadNullableRef<T>(IDeserialize<T> d)
         where T : class
@@ -63,8 +64,6 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
     public decimal ReadDecimal() => throw new NotImplementedException();
     public DateTime ReadDateTime() => throw new NotImplementedException();
     public void ReadBytes(IBufferWriter<byte> writer) => throw new NotImplementedException();
-
-    public ITypeDeserializer ReadType(ISerdeInfo typeInfo) => this;
 
     public void Dispose() { }
 }
