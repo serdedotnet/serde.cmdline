@@ -27,7 +27,7 @@ public sealed partial class SubCommandTests
     [Fact]
     public void TopLevelHelp()
     {
-        var help = CmdLine.GetHelpText(SerdeInfoProvider.GetDeserializeInfo<TopCommand>());
+        var help = CmdLine.GetHelpText(SerdeInfoProvider.GetInfo<TopCommand>());
         var text = """
 usage: TopCommand [-v | --verbose] [-h | --help] <command>
 
@@ -59,8 +59,6 @@ Commands:
     [GenerateDeserialize]
     private abstract partial record SubCommand
     {
-        private SubCommand() { }
-
         [Command("first")]
         public sealed partial record FirstCommand : SubCommand;
         [Command("second")]
