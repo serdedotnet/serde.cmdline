@@ -59,8 +59,6 @@ Commands:
     [GenerateDeserialize]
     private abstract partial record SubCommand
     {
-        private SubCommand() { }
-
         [Command("first")]
         public sealed partial record FirstCommand : SubCommand;
         [Command("second")]

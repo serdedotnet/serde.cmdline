@@ -110,8 +110,6 @@ public partial class CmdLineBenchmarks
     [GenerateDeserialize]
     public abstract partial record SubCommand
     {
-        private SubCommand() { }
-
         [Command("first")]
         public sealed partial record FirstCommand : SubCommand
         {
