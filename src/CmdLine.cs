@@ -26,7 +26,7 @@ public static class CmdLine
         var deserializer = new Deserializer(args, handleHelp: true);
         try
         {
-            var cmd = T.Instance.Deserialize(deserializer);
+            var cmd = T.DeserializeInstance.Deserialize(deserializer);
             if (deserializer.HelpInfos.Count > 0)
             {
                 return new ParsedArgsOrHelpInfos<T>.Help(deserializer.HelpInfos);
@@ -57,7 +57,7 @@ public static class CmdLine
         var deserializer = new Deserializer(args, handleHelp: false);
         try
         {
-            return T.Instance.Deserialize(deserializer);
+            return T.DeserializeInstance.Deserialize(deserializer);
         }
         catch (DeserializeException e)
         {
@@ -82,7 +82,7 @@ public static class CmdLine
                     cmd = value;
                     return true;
                 case ParsedArgsOrHelpInfos<T>.Help(var helpInfos):
-                    var rootInfo = SerdeInfoProvider.GetDeserializeInfo<T>();
+                    var rootInfo = SerdeInfoProvider.GetInfo<T>();
                     var lastInfo = helpInfos.Last();
                     console.WriteLine(CmdLine.GetHelpText(rootInfo, lastInfo, includeHelp: true));
                     cmd = default!;
@@ -103,7 +103,7 @@ public static class CmdLine
     public static string GetHelpText<T>(bool includeHelp = false)
         where T : IDeserializeProvider<T>
     {
-        var rootInfo = SerdeInfoProvider.GetDeserializeInfo<T>();
+        var rootInfo = SerdeInfoProvider.GetInfo<T>();
         return GetHelpText(rootInfo, includeHelp);
     }
 
@@ -157,11 +157,6 @@ public static class CmdLine
                     commandsName ??= commandName;
 #pragma warning disable SerdeExperimentalFieldInfo
                     var info = targetInfo.GetFieldInfo(fieldIndex);
-                    // If the info is a nullable wrapper, unwrap it first.
-                    if (info.Kind == InfoKind.Nullable)
-                    {
-                        info = info.GetFieldInfo(0);
-                    }
 #pragma warning restore SerdeExperimentalFieldInfo
 
                     foreach (var caseInfo in ((IUnionSerdeInfo)info).CaseInfos)
@@ -315,14 +310,6 @@ usage: {topLevelName}{optionsUsageShortString}{commandsName?.Map(n => $" <{n}>")
 
             static bool BuildParentInfos(List<ISerdeInfo> parentInfos, ISerdeInfo currentInfo, ISerdeInfo targetInfo)
             {
-                // Unwrap nullable types
-                if (currentInfo.Kind == InfoKind.Nullable)
-                {
-#pragma warning disable SerdeExperimentalFieldInfo // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-                    currentInfo = currentInfo.GetFieldInfo(0);
-#pragma warning restore SerdeExperimentalFieldInfo // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-                }
-
                 if (currentInfo == targetInfo)
                 {
                     return true;

@@ -55,13 +55,13 @@ public partial class CmdLineBenchmarks
     [Benchmark]
     public string GenerateHelpText()
     {
-        return CmdLine.GetHelpText(SerdeInfoProvider.GetDeserializeInfo<ComplexCommand>());
+        return CmdLine.GetHelpText(SerdeInfoProvider.GetInfo<ComplexCommand>());
     }
 
     [Benchmark]
     public string GenerateSubCommandHelpText()
     {
-        return CmdLine.GetHelpText(SerdeInfoProvider.GetDeserializeInfo<TopCommand>());
+        return CmdLine.GetHelpText(SerdeInfoProvider.GetInfo<TopCommand>());
     }
 
     // Simple command with minimal options

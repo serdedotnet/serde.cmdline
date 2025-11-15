@@ -5,7 +5,7 @@ using System.Reflection;
 
 namespace Serde.CmdLine;
 
-internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDeserializer
+internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDeserializer, IDeserializeType
 {
     private int _argIndex = 0;
     private int _paramIndex = 0;
@@ -14,12 +14,12 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
 
     public IReadOnlyList<ISerdeInfo> HelpInfos => _helpInfos;
 
-    int ITypeDeserializer.TryReadIndex(ISerdeInfo serdeInfo, out string? errorName)
+    int IDeserializeType.TryReadIndex(ISerdeInfo serdeInfo, out string? errorName)
     {
         if (_argIndex == args.Length)
         {
             errorName = null;
-            return ITypeDeserializer.EndOfType;
+            return IDeserializeType.EndOfType;
         }
 
         var arg = args[_argIndex];
@@ -30,7 +30,7 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
             if (_argIndex == args.Length)
             {
                 errorName = null;
-                return ITypeDeserializer.EndOfType;
+                return IDeserializeType.EndOfType;
             }
             arg = args[_argIndex];
         }
@@ -71,11 +71,6 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
                     // the argument. If so, mark this field as a match.
 #pragma warning disable SerdeExperimentalFieldInfo // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
                     var fieldInfo = serdeInfo.GetFieldInfo(fieldIndex);
-                    if (fieldInfo.Kind == InfoKind.Nullable)
-                    {
-                        // Unwrap nullable if present
-                        fieldInfo = fieldInfo.GetFieldInfo(0);
-                    }
 #pragma warning restore SerdeExperimentalFieldInfo // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
                     // Save the argIndex and throwOnMissing so we can restore it after checking.
@@ -114,7 +109,7 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
         else
         {
             errorName = arg;
-            return ITypeDeserializer.IndexNotFound;
+            return IDeserializeType.IndexNotFound;
         }
     }
 
@@ -133,17 +128,23 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
 
     public string ReadString() => args[_argIndex++];
 
-    public T ReadNullableRef<T>(IDeserialize<T> d)
+    public T? ReadNullableRef<T, TProxy>(TProxy proxy)
         where T : class
+        where TProxy : IDeserialize<T>
     {
         // Treat all nullable values as just being optional. Since we got here we must have a value
         // in hand.
-        return d.Deserialize(this);
+        return proxy.Deserialize(this);
+    }
+
+    public T ReadAny<T>(IDeserializeVisitor<T> v) where T : class
+    {
+        throw new NotImplementedException();
     }
 
     public char ReadChar() => throw new NotImplementedException();
 
-    public byte ReadU8() => throw new NotImplementedException();
+    public byte ReadByte() => throw new NotImplementedException();
 
     public ushort ReadU16() => throw new NotImplementedException();
 
@@ -151,7 +152,7 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
 
     public ulong ReadU64() => throw new NotImplementedException();
 
-    public sbyte ReadI8() => throw new NotImplementedException();
+    public sbyte ReadSByte() => throw new NotImplementedException();
 
     public short ReadI16() => throw new NotImplementedException();
 
@@ -159,15 +160,20 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
 
     public long ReadI64() => throw new NotImplementedException();
 
-    public float ReadF32() => throw new NotImplementedException();
+    public float ReadFloat() => throw new NotImplementedException();
 
-    public double ReadF64() => throw new NotImplementedException();
+    public double ReadDouble() => throw new NotImplementedException();
 
     public decimal ReadDecimal() => throw new NotImplementedException();
     public DateTime ReadDateTime() => throw new NotImplementedException();
     public void ReadBytes(IBufferWriter<byte> writer) => throw new NotImplementedException();
 
-    public ITypeDeserializer ReadType(ISerdeInfo typeInfo) => this;
+    public IDeserializeType ReadType(ISerdeInfo typeInfo) => this;
+
+    public IDeserializeCollection ReadCollection(ISerdeInfo typeInfo)
+    {
+        throw new NotImplementedException();
+    }
 
     public void Dispose() { }
 }
