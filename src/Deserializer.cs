@@ -14,12 +14,17 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
 
     public IReadOnlyList<ISerdeInfo> HelpInfos => _helpInfos;
 
-    int ITypeDeserializer.TryReadIndex(ISerdeInfo serdeInfo, out string? errorName)
+    int ITypeDeserializer.TryReadIndex(ISerdeInfo serdeInfo)
+    {
+        var (index, _) = ((ITypeDeserializer)this).TryReadIndexWithName(serdeInfo);
+        return index;
+    }
+
+    (int, string? errorName) ITypeDeserializer.TryReadIndexWithName(ISerdeInfo serdeInfo)
     {
         if (_argIndex == args.Length)
         {
-            errorName = null;
-            return ITypeDeserializer.EndOfType;
+            return (ITypeDeserializer.EndOfType, null);
         }
 
         var arg = args[_argIndex];
@@ -29,8 +34,7 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
             _helpInfos.Add(serdeInfo);
             if (_argIndex == args.Length)
             {
-                errorName = null;
-                return ITypeDeserializer.EndOfType;
+                return (ITypeDeserializer.EndOfType, null);
             }
             arg = args[_argIndex];
         }
@@ -50,8 +54,7 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
                         if (arg == flag)
                         {
                             _argIndex++;
-                            errorName = null;
-                            return fieldIndex;
+                            return (fieldIndex, null);
                         }
                     }
                 }
@@ -61,8 +64,7 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
                          commandName == arg)
                 {
                     _argIndex++;
-                    errorName = null;
-                    return fieldIndex;
+                    return (fieldIndex, null);
                 }
                 else if (!arg.StartsWith('-') &&
                          attr is { AttributeType: { Name: nameof(CommandGroupAttribute) } })
@@ -84,15 +86,14 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
                     _throwOnMissing = false;
 
                     var deType = this.ReadType(fieldInfo);
-                    int index = deType.TryReadIndex(fieldInfo, out _);
+                    int index = deType.TryReadIndex(fieldInfo);
                     _argIndex = savedIndex;
                     _throwOnMissing = savedThrowOnMissing;
 
                     if (index >= 0)
                     {
                         // We found a match, so we can return the field index.
-                        errorName = null;
-                        return fieldIndex;
+                        return (fieldIndex, null);
                     }
                     // No match, so we can continue.
                 }
@@ -102,8 +103,7 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
                          _paramIndex == paramIndex)
                 {
                     _paramIndex++;
-                    errorName = null;
-                    return fieldIndex;
+                    return (fieldIndex, null);
                 }
             }
         }
@@ -113,8 +113,7 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
         }
         else
         {
-            errorName = arg;
-            return ITypeDeserializer.IndexNotFound;
+            return (ITypeDeserializer.IndexNotFound, arg);
         }
     }
 
