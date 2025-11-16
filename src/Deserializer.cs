@@ -5,7 +5,7 @@ using System.Reflection;
 
 namespace Serde.CmdLine;
 
-internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDeserializer, IDeserializeType
+internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDeserializer
 {
     private int _argIndex = 0;
     private int _paramIndex = 0;
@@ -14,12 +14,17 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
 
     public IReadOnlyList<ISerdeInfo> HelpInfos => _helpInfos;
 
-    int IDeserializeType.TryReadIndex(ISerdeInfo serdeInfo, out string? errorName)
+    int ITypeDeserializer.TryReadIndex(ISerdeInfo serdeInfo)
+    {
+        var (index, _) = ((ITypeDeserializer)this).TryReadIndexWithName(serdeInfo);
+        return index;
+    }
+
+    (int, string? errorName) ITypeDeserializer.TryReadIndexWithName(ISerdeInfo serdeInfo)
     {
         if (_argIndex == args.Length)
         {
-            errorName = null;
-            return IDeserializeType.EndOfType;
+            return (ITypeDeserializer.EndOfType, null);
         }
 
         var arg = args[_argIndex];
@@ -29,8 +34,7 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
             _helpInfos.Add(serdeInfo);
             if (_argIndex == args.Length)
             {
-                errorName = null;
-                return IDeserializeType.EndOfType;
+                return (ITypeDeserializer.EndOfType, null);
             }
             arg = args[_argIndex];
         }
@@ -50,8 +54,7 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
                         if (arg == flag)
                         {
                             _argIndex++;
-                            errorName = null;
-                            return fieldIndex;
+                            return (fieldIndex, null);
                         }
                     }
                 }
@@ -61,8 +64,7 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
                          commandName == arg)
                 {
                     _argIndex++;
-                    errorName = null;
-                    return fieldIndex;
+                    return (fieldIndex, null);
                 }
                 else if (!arg.StartsWith('-') &&
                          attr is { AttributeType: { Name: nameof(CommandGroupAttribute) } })
@@ -71,6 +73,11 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
                     // the argument. If so, mark this field as a match.
 #pragma warning disable SerdeExperimentalFieldInfo // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
                     var fieldInfo = serdeInfo.GetFieldInfo(fieldIndex);
+                    if (fieldInfo.Kind == InfoKind.Nullable)
+                    {
+                        // Unwrap nullable if present
+                        fieldInfo = fieldInfo.GetFieldInfo(0);
+                    }
 #pragma warning restore SerdeExperimentalFieldInfo // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
                     // Save the argIndex and throwOnMissing so we can restore it after checking.
@@ -79,15 +86,14 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
                     _throwOnMissing = false;
 
                     var deType = this.ReadType(fieldInfo);
-                    int index = deType.TryReadIndex(fieldInfo, out _);
+                    int index = deType.TryReadIndex(fieldInfo);
                     _argIndex = savedIndex;
                     _throwOnMissing = savedThrowOnMissing;
 
                     if (index >= 0)
                     {
                         // We found a match, so we can return the field index.
-                        errorName = null;
-                        return fieldIndex;
+                        return (fieldIndex, null);
                     }
                     // No match, so we can continue.
                 }
@@ -97,8 +103,7 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
                          _paramIndex == paramIndex)
                 {
                     _paramIndex++;
-                    errorName = null;
-                    return fieldIndex;
+                    return (fieldIndex, null);
                 }
             }
         }
@@ -108,8 +113,7 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
         }
         else
         {
-            errorName = arg;
-            return IDeserializeType.IndexNotFound;
+            return (ITypeDeserializer.IndexNotFound, arg);
         }
     }
 
@@ -128,23 +132,17 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
 
     public string ReadString() => args[_argIndex++];
 
-    public T? ReadNullableRef<T, TProxy>(TProxy proxy)
+    public T ReadNullableRef<T>(IDeserialize<T> d)
         where T : class
-        where TProxy : IDeserialize<T>
     {
         // Treat all nullable values as just being optional. Since we got here we must have a value
         // in hand.
-        return proxy.Deserialize(this);
-    }
-
-    public T ReadAny<T>(IDeserializeVisitor<T> v) where T : class
-    {
-        throw new NotImplementedException();
+        return d.Deserialize(this);
     }
 
     public char ReadChar() => throw new NotImplementedException();
 
-    public byte ReadByte() => throw new NotImplementedException();
+    public byte ReadU8() => throw new NotImplementedException();
 
     public ushort ReadU16() => throw new NotImplementedException();
 
@@ -152,7 +150,7 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
 
     public ulong ReadU64() => throw new NotImplementedException();
 
-    public sbyte ReadSByte() => throw new NotImplementedException();
+    public sbyte ReadI8() => throw new NotImplementedException();
 
     public short ReadI16() => throw new NotImplementedException();
 
@@ -160,20 +158,15 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
 
     public long ReadI64() => throw new NotImplementedException();
 
-    public float ReadFloat() => throw new NotImplementedException();
+    public float ReadF32() => throw new NotImplementedException();
 
-    public double ReadDouble() => throw new NotImplementedException();
+    public double ReadF64() => throw new NotImplementedException();
 
     public decimal ReadDecimal() => throw new NotImplementedException();
     public DateTime ReadDateTime() => throw new NotImplementedException();
     public void ReadBytes(IBufferWriter<byte> writer) => throw new NotImplementedException();
 
-    public IDeserializeType ReadType(ISerdeInfo typeInfo) => this;
-
-    public IDeserializeCollection ReadCollection(ISerdeInfo typeInfo)
-    {
-        throw new NotImplementedException();
-    }
+    public ITypeDeserializer ReadType(ISerdeInfo typeInfo) => this;
 
     public void Dispose() { }
 }
