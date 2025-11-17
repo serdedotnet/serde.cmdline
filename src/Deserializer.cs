@@ -7,115 +7,13 @@ namespace Serde.CmdLine;
 
 internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDeserializer
 {
+    private readonly bool _handleHelp = handleHelp;
     private int _argIndex = 0;
     private int _paramIndex = 0;
     private bool _throwOnMissing = true;
     private readonly List<ISerdeInfo> _helpInfos = new();
 
     public IReadOnlyList<ISerdeInfo> HelpInfos => _helpInfos;
-
-    int ITypeDeserializer.TryReadIndex(ISerdeInfo serdeInfo)
-    {
-        var (index, _) = ((ITypeDeserializer)this).TryReadIndexWithName(serdeInfo);
-        return index;
-    }
-
-    (int, string? errorName) ITypeDeserializer.TryReadIndexWithName(ISerdeInfo serdeInfo)
-    {
-        if (_argIndex == args.Length)
-        {
-            return (ITypeDeserializer.EndOfType, null);
-        }
-
-        var arg = args[_argIndex];
-        while (handleHelp && arg is "-h" or "--help")
-        {
-            _argIndex++;
-            _helpInfos.Add(serdeInfo);
-            if (_argIndex == args.Length)
-            {
-                return (ITypeDeserializer.EndOfType, null);
-            }
-            arg = args[_argIndex];
-        }
-
-        for (int fieldIndex = 0; fieldIndex < serdeInfo.FieldCount; fieldIndex++)
-        {
-            IList<CustomAttributeData> attrs = serdeInfo.GetFieldAttributes(fieldIndex);
-            foreach (var attr in attrs)
-            {
-                if (arg.StartsWith('-') &&
-                    attr is { AttributeType: { Name: nameof(CommandOptionAttribute) },
-                              ConstructorArguments: [ { Value: string flagNames } ] })
-                {
-                    var flagNamesArray = flagNames.Split('|');
-                    foreach (var flag in flagNamesArray)
-                    {
-                        if (arg == flag)
-                        {
-                            _argIndex++;
-                            return (fieldIndex, null);
-                        }
-                    }
-                }
-                else if (!arg.StartsWith('-') &&
-                         attr is { AttributeType: { Name: nameof(CommandAttribute) },
-                                   ConstructorArguments: [ { Value: string commandName } ] } &&
-                         commandName == arg)
-                {
-                    _argIndex++;
-                    return (fieldIndex, null);
-                }
-                else if (!arg.StartsWith('-') &&
-                         attr is { AttributeType: { Name: nameof(CommandGroupAttribute) } })
-                {
-                    // If the field is a command group, check to see if any of the nested commands match
-                    // the argument. If so, mark this field as a match.
-#pragma warning disable SerdeExperimentalFieldInfo // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-                    var fieldInfo = serdeInfo.GetFieldInfo(fieldIndex);
-                    if (fieldInfo.Kind == InfoKind.Nullable)
-                    {
-                        // Unwrap nullable if present
-                        fieldInfo = fieldInfo.GetFieldInfo(0);
-                    }
-#pragma warning restore SerdeExperimentalFieldInfo // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-
-                    // Save the argIndex and throwOnMissing so we can restore it after checking.
-                    var savedIndex = _argIndex;
-                    var savedThrowOnMissing = _throwOnMissing;
-                    _throwOnMissing = false;
-
-                    var deType = this.ReadType(fieldInfo);
-                    int index = deType.TryReadIndex(fieldInfo);
-                    _argIndex = savedIndex;
-                    _throwOnMissing = savedThrowOnMissing;
-
-                    if (index >= 0)
-                    {
-                        // We found a match, so we can return the field index.
-                        return (fieldIndex, null);
-                    }
-                    // No match, so we can continue.
-                }
-                else if (!arg.StartsWith('-') &&
-                         attr is { AttributeType: { Name: nameof(CommandParameterAttribute) },
-                                   ConstructorArguments: [ { Value: int paramIndex }, _ ] } &&
-                         _paramIndex == paramIndex)
-                {
-                    _paramIndex++;
-                    return (fieldIndex, null);
-                }
-            }
-        }
-        if (_throwOnMissing)
-        {
-            throw new ArgumentSyntaxException($"Unexpected argument: '{arg}'");
-        }
-        else
-        {
-            return (ITypeDeserializer.IndexNotFound, arg);
-        }
-    }
 
     public bool ReadBool()
     {
