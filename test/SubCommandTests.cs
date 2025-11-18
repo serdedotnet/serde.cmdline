@@ -59,6 +59,42 @@ Commands:
         Assert.Equal(text.NormalizeLineEndings(), help.NormalizeLineEndings());
     }
 
+    [Fact]
+    public void ParentOptionAfterSubcommand()
+    {
+        // Test that parent option can come after subcommand: "first -v" == "-v first"
+        string[] testArgs = [ "first", "-v" ];
+        var cmd = CmdLine.ParseRawWithHelp<TopCommand>(testArgs).Unwrap();
+        Assert.Equal(new TopCommand { Verbose = true, SubCommand = new SubCommand.FirstCommand() }, cmd);
+    }
+
+    [Fact]
+    public void ParentOptionAfterSubcommandLong()
+    {
+        // Test with long option after subcommand
+        string[] testArgs = [ "first", "--verbose" ];
+        var cmd = CmdLine.ParseRawWithHelp<TopCommand>(testArgs).Unwrap();
+        Assert.Equal(new TopCommand { Verbose = true, SubCommand = new SubCommand.FirstCommand() }, cmd);
+    }
+
+    [Fact]
+    public void MixedOptionsAfterSubcommand()
+    {
+        // Test that both parent and subcommand options work after subcommand
+        string[] testArgs = [ "first", "-s", "-v" ];
+        var cmd = CmdLine.ParseRawWithHelp<TopCommand>(testArgs).Unwrap();
+        Assert.Equal(new TopCommand { Verbose = true, SubCommand = new SubCommand.FirstCommand() { SomeOption = true } }, cmd);
+    }
+
+    [Fact]
+    public void MixedOptionsAfterSubcommandReordered()
+    {
+        // Test that parent option can come before subcommand option
+        string[] testArgs = [ "first", "-v", "-s" ];
+        var cmd = CmdLine.ParseRawWithHelp<TopCommand>(testArgs).Unwrap();
+        Assert.Equal(new TopCommand { Verbose = true, SubCommand = new SubCommand.FirstCommand() { SomeOption = true } }, cmd);
+    }
+
     [GenerateDeserialize]
     private partial record TopCommand
     {

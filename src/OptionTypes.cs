@@ -15,6 +15,12 @@ internal record struct CommandGroup(
 
 internal record struct Parameter(int Ordinal, int FieldIndex);
 
+// Tracks an option from a parent command with information about which parent it belongs to
+internal record struct ParentOption(
+    ImmutableArray<string> FlagNames,
+    int ParentDepth  // How many levels up: 1 = immediate parent, 2 = grandparent, etc.
+);
+
 internal record struct Command(
     ImmutableArray<Option> Options,
     ImmutableArray<SubCommand> SubCommands,
