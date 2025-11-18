@@ -25,6 +25,22 @@ public sealed partial class SubCommandTests
     }
 
     [Fact]
+    public void FirstCommandWithShortOption()
+    {
+        string[] testArgs = [ "-v", "first", "-s" ];
+        var cmd = CmdLine.ParseRawWithHelp<TopCommand>(testArgs).Unwrap();
+        Assert.Equal(new TopCommand { Verbose = true, SubCommand = new SubCommand.FirstCommand() { SomeOption = true } }, cmd);
+    }
+
+    [Fact]
+    public void FirstCommandWithLongOption()
+    {
+        string[] testArgs = [ "-v", "first", "--some-option" ];
+        var cmd = CmdLine.ParseRawWithHelp<TopCommand>(testArgs).Unwrap();
+        Assert.Equal(new TopCommand { Verbose = true, SubCommand = new SubCommand.FirstCommand() { SomeOption = true } }, cmd);
+    }
+
+    [Fact]
     public void TopLevelHelp()
     {
         var help = CmdLine.GetHelpText(SerdeInfoProvider.GetDeserializeInfo<TopCommand>());
@@ -62,7 +78,12 @@ Commands:
         private SubCommand() { }
 
         [Command("first")]
-        public sealed partial record FirstCommand : SubCommand;
+        public sealed partial record FirstCommand : SubCommand
+        {
+            [CommandOption("-s|--some-option")]
+            public bool? SomeOption { get; init; }
+        }
+
         [Command("second")]
         public sealed partial record SecondCommand : SubCommand;
     }
