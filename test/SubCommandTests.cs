@@ -95,6 +95,38 @@ Commands:
         Assert.Equal(new TopCommand { Verbose = true, SubCommand = new SubCommand.FirstCommand() { SomeOption = true } }, cmd);
     }
 
+    [Fact]
+    public void ConflictingOptionsBetweenParentAndSubcommand()
+    {
+        // If an option exists in both parent and subcommand, an error should be produced unconditionally
+        var ex = Assert.Throws<ArgumentSyntaxException>(() => 
+            CmdLine.ParseRawWithHelp<ConflictCommand>([ "conflict" ]));
+        Assert.Contains("defined in both parent command and subcommand", ex.Message);
+    }
+
+    [GenerateDeserialize]
+    private partial record ConflictCommand
+    {
+        [CommandOption("-c|--conflict")]
+        public bool? ConflictOpt { get; init; }
+
+        [CommandGroup("command")]
+        public ConflictSubCommand? SubCommand { get; init; }
+    }
+
+    [GenerateDeserialize]
+    private abstract partial record ConflictSubCommand
+    {
+        private ConflictSubCommand() { }
+
+        [Command("conflict")]
+        public sealed partial record ConflictCase : ConflictSubCommand
+        {
+            [CommandOption("-c|--conflict")]  // Same option as parent - should cause error
+            public bool? ConflictOpt { get; init; }
+        }
+    }
+
     [GenerateDeserialize]
     private partial record TopCommand
     {

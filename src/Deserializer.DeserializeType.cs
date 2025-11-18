@@ -19,62 +19,119 @@ internal sealed partial class Deserializer
 
         private (int, string?) TryReadIndexWithName(ISerdeInfo serdeInfo)
         {
-            System.IO.File.AppendAllText("/tmp/debug.txt", $"TryReadIndexWithName called for {serdeInfo.Name}, argIndex={_deserializer._argIndex}, claimedCount={_deserializer._claimedArgIndices.Count}, claimed=[{string.Join(",", _deserializer._claimedArgIndices)}]\n");
-            
-            // First check if we have any pending parent options to process
-            if (_deserializer._pendingParentOptions.TryDequeue(out var pending))
+            // Skip any parent options (leave them for parent to process)
+            while (_deserializer._argIndex < _deserializer._args.Length)
             {
-                // Restore arg index to the saved position to re-read the option
-                var savedArgIndex = _deserializer._argIndex;
-                _deserializer._argIndex = pending.ArgIndex;
-                // Process the option (it will consume the arg)
                 var arg = _deserializer._args[_deserializer._argIndex];
-                var (fieldIndex, errorName) = CheckFields(arg);
-                return (fieldIndex, errorName);
+                
+                // Handle help
+                if (_deserializer._handleHelp && arg is "-h" or "--help")
+                {
+                    _deserializer._argIndex++;
+                    _deserializer._helpInfos.Add(serdeInfo);
+                    continue;
+                }
+                
+                // If this is a parent option, skip it and save for later
+                if (arg.StartsWith('-'))
+                {
+                    var (isParent, fieldIndex, parentCmd) = FindParentOption(arg);
+                    if (isParent)
+                    {
+                        // Save this option for the parent to process later
+                        var currentArgIndex = _deserializer._argIndex;
+                        _deserializer._argIndex++; // Skip the option
+                        // Check if next arg might be a value for this option (boolean value)
+                        if (_deserializer._argIndex < _deserializer._args.Length &&
+                            bool.TryParse(_deserializer._args[_deserializer._argIndex], out _))
+                        {
+                            _deserializer._argIndex++; // Skip the value too
+                        }
+                        // Add to the parent's skipped list
+                        // Find the entry in parentOptionsToProcess that matches this parent command
+                        foreach (var entry in _deserializer._parentOptionsToProcess)
+                        {
+                            if (entry.ParentCmd.Options == parentCmd.Options) // Simple equality check
+                            {
+                                entry.SkippedOptions.Add((fieldIndex, currentArgIndex));
+                                break;
+                            }
+                        }
+                        continue; // Continue looking for non-parent options
+                    }
+                }
+                
+                // Not a parent option, try to match it
+                break;
             }
-
-            // Skip any arguments that have been claimed by parent commands
-            while (_deserializer._argIndex < _deserializer._args.Length &&
-                   _deserializer._claimedArgIndices.Contains(_deserializer._argIndex))
-            {
-                System.IO.File.AppendAllText("/tmp/debug.txt", $"Skipping claimed arg at index {_deserializer._argIndex}: {_deserializer._args[_deserializer._argIndex]}\n");
-                _deserializer._argIndex++;
-            }
-
+            
             if (_deserializer._argIndex == _deserializer._args.Length)
             {
-                System.IO.File.AppendAllText("/tmp/debug.txt", $"Reached end of args\n");
+                // Check if there are skipped parent options to process for THIS command
+                if (_deserializer._parentOptionsToProcess.Count > 0)
+                {
+                    var (parentCmd, skippedList) = _deserializer._parentOptionsToProcess.Peek();
+                    // Only process if this matches our command
+                    if (parentCmd.Options == _command.Options && skippedList.Count > 0)
+                    {
+                        var (fieldIndex, argIdx) = skippedList[0];
+                        skippedList.RemoveAt(0);
+                        // Set argIndex to the saved position and consume the option
+                        var savedIndex = _deserializer._argIndex;
+                        _deserializer._argIndex = argIdx;
+                        _deserializer._argIndex++; // Consume the option
+                        // Check if next is a boolean value
+                        if (_deserializer._argIndex < _deserializer._args.Length &&
+                            bool.TryParse(_deserializer._args[_deserializer._argIndex], out _))
+                        {
+                            _deserializer._argIndex++; // Consume the value
+                        }
+                        // If this was the last skipped option for this level, pop both stacks
+                        if (skippedList.Count == 0)
+                        {
+                            _deserializer._parentOptionsToProcess.Pop();
+                            _deserializer._parentCommands.Pop();
+                        }
+                        // Restore argIndex to continue from where we were
+                        _deserializer._argIndex = savedIndex;
+                        return (fieldIndex, null);
+                    }
+                }
+                
                 return (ITypeDeserializer.EndOfType, null);
             }
 
-            var arg2 = _deserializer._args[_deserializer._argIndex];
-            System.IO.File.AppendAllText("/tmp/debug.txt", $"Processing arg at index {_deserializer._argIndex}: {arg2}\n");
-            while (_deserializer._handleHelp && arg2 is "-h" or "--help")
+            var currentArg = _deserializer._args[_deserializer._argIndex];
+            var (matchedFieldIndex, errorName) = CheckFields(currentArg);
+            if (matchedFieldIndex >= 0)
             {
-                _deserializer._argIndex++;
-                _deserializer._helpInfos.Add(serdeInfo);
-                
-                // Skip claimed arguments again
-                while (_deserializer._argIndex < _deserializer._args.Length &&
-                       _deserializer._claimedArgIndices.Contains(_deserializer._argIndex))
-                {
-                    _deserializer._argIndex++;
-                }
-                
-                if (_deserializer._argIndex == _deserializer._args.Length)
-                {
-                    return (ITypeDeserializer.EndOfType, null);
-                }
-                arg2 = _deserializer._args[_deserializer._argIndex];
-            }
-            var (fieldIndex2, errorName2) = CheckFields(arg2);
-            System.IO.File.AppendAllText("/tmp/debug.txt", $"CheckFields returned fieldIndex={fieldIndex2}\n");
-            if (fieldIndex2 >= 0)
-            {
-                return (fieldIndex2, errorName2);
+                return (matchedFieldIndex, errorName);
             }
 
-            throw new ArgumentSyntaxException($"Unexpected argument: '{arg2}'");
+            throw new ArgumentSyntaxException($"Unexpected argument: '{currentArg}'");
+        }
+
+        private bool IsParentOption(string arg)
+        {
+            return FindParentOption(arg).IsParent;
+        }
+
+        private (bool IsParent, int FieldIndex, Command ParentCmd) FindParentOption(string arg)
+        {
+            foreach (var parentCmd in _deserializer._parentCommands)
+            {
+                foreach (var option in parentCmd.Options)
+                {
+                    foreach (var flagName in option.FlagNames)
+                    {
+                        if (flagName == arg)
+                        {
+                            return (true, option.FieldIndex, parentCmd);
+                        }
+                    }
+                }
+            }
+            return (false, -1, default);
         }
 
         int ITypeDeserializer.TryReadIndex(ISerdeInfo info)
@@ -85,8 +142,6 @@ internal sealed partial class Deserializer
 
         private (int, string?) CheckFields(string arg)
         {
-            System.IO.File.AppendAllText("/tmp/debug.txt", $"CheckFields called with arg='{arg}', options count={_command.Options.Length}, cmdGroups count={_command.CommandGroups.Length}\n");
-            
             var cmd = _command;
             if (arg.StartsWith('-'))
             {
@@ -123,12 +178,10 @@ internal sealed partial class Deserializer
                     if (name == arg)
                     {
                         // Found a command group match
-                        // Before processing the subcommand, scan ahead for parent options
                         // Push current command onto parent stack so subcommands know about it
                         _deserializer._parentCommands.Push(_command);
-                        
-                        // Scan remaining arguments for parent options
-                        ScanForParentOptions();
+                        // Push the current command and a new empty list to track options skipped by the subcommand
+                        _deserializer._parentOptionsToProcess.Push((_command, new List<(int, int)>()));
                         
                         return (cmdGroup.FieldIndex, null);
                     }
@@ -147,78 +200,7 @@ internal sealed partial class Deserializer
                     return (param.FieldIndex, null);
                 }
             }
-            System.IO.File.AppendAllText("/tmp/debug.txt", $"CheckFields: No match found for arg='{arg}'\n");
             return (-1, null);
-        }
-
-        private void ScanForParentOptions()
-        {
-            // Look ahead in arguments to find any options that belong to parent commands
-            // We need to mark these for processing by the parent after the subcommand is done
-            var scanIndex = _deserializer._argIndex + 1; // Start after the subcommand name
-            var foundOptions = new List<(int FieldIndex, int ArgIndex)>();
-            
-            System.IO.File.AppendAllText("/tmp/debug.txt", $"ScanForParentOptions: starting at index {scanIndex}\n");
-            
-            while (scanIndex < _deserializer._args.Length)
-            {
-                var arg = _deserializer._args[scanIndex];
-                
-                if (!arg.StartsWith('-'))
-                {
-                    // Not an option, stop scanning (could be a positional argument or nested subcommand)
-                    break;
-                }
-                
-                // Check if this option belongs to current (parent) command
-                bool matchedParent = false;
-                foreach (var option in _command.Options)
-                {
-                    foreach (var flagName in option.FlagNames)
-                    {
-                        if (flagName == arg)
-                        {
-                            // This option belongs to the parent command
-                            foundOptions.Add((option.FieldIndex, scanIndex));
-                            // Mark this argument index as claimed so subcommand won't try to process it
-                            _deserializer._claimedArgIndices.Add(scanIndex);
-                            System.IO.File.AppendAllText("/tmp/debug.txt", $"ScanForParentOptions: claimed index {scanIndex} (arg='{arg}')\n");
-                            matchedParent = true;
-                            break;
-                        }
-                    }
-                    if (matchedParent) break;
-                }
-                
-                if (matchedParent)
-                {
-                    // Move to next argument (skip the option value if any)
-                    scanIndex++;
-                    // For boolean flags, check if next arg is a boolean value
-                    if (scanIndex < _deserializer._args.Length && 
-                        bool.TryParse(_deserializer._args[scanIndex], out _))
-                    {
-                        // Also mark the boolean value as claimed
-                        _deserializer._claimedArgIndices.Add(scanIndex);
-                        System.IO.File.AppendAllText("/tmp/debug.txt", $"ScanForParentOptions: claimed bool value at index {scanIndex}\n");
-                        scanIndex++; // Skip the boolean value
-                    }
-                }
-                else
-                {
-                    // This option doesn't belong to parent, might belong to subcommand
-                    // Continue scanning in case there are more parent options later
-                    scanIndex++;
-                }
-            }
-            
-            System.IO.File.AppendAllText("/tmp/debug.txt", $"ScanForParentOptions: found {foundOptions.Count} parent options\n");
-            
-            // Queue the found parent options for processing
-            foreach (var opt in foundOptions)
-            {
-                _deserializer._pendingParentOptions.Enqueue(opt);
-            }
         }
 
         private static Command ParseCommandAndValidate(ISerdeInfo serdeInfo, Stack<Command> parentCommands)
