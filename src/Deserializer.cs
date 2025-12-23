@@ -11,6 +11,10 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
     private int _argIndex = 0;
     private int _paramIndex = 0;
     private readonly List<ISerdeInfo> _helpInfos = new();
+    private readonly Stack<Command> _parentCommands = new();
+    // Stack of (command, skipped options list) pairs - each entry represents a parent command
+    // and the options that were skipped by its subcommands
+    private readonly Stack<(Command ParentCmd, List<(int FieldIndex, int ArgIndex)> SkippedOptions)> _parentOptionsToProcess = new();
 
     public IReadOnlyList<ISerdeInfo> HelpInfos => _helpInfos;
 

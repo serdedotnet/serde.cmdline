@@ -59,6 +59,74 @@ Commands:
         Assert.Equal(text.NormalizeLineEndings(), help.NormalizeLineEndings());
     }
 
+    [Fact]
+    public void ParentOptionAfterSubcommand()
+    {
+        // Test that parent option can come after subcommand: "first -v" == "-v first"
+        string[] testArgs = [ "first", "-v" ];
+        var cmd = CmdLine.ParseRawWithHelp<TopCommand>(testArgs).Unwrap();
+        Assert.Equal(new TopCommand { Verbose = true, SubCommand = new SubCommand.FirstCommand() }, cmd);
+    }
+
+    [Fact]
+    public void ParentOptionAfterSubcommandLong()
+    {
+        // Test with long option after subcommand
+        string[] testArgs = [ "first", "--verbose" ];
+        var cmd = CmdLine.ParseRawWithHelp<TopCommand>(testArgs).Unwrap();
+        Assert.Equal(new TopCommand { Verbose = true, SubCommand = new SubCommand.FirstCommand() }, cmd);
+    }
+
+    [Fact]
+    public void MixedOptionsAfterSubcommand()
+    {
+        // Test that both parent and subcommand options work after subcommand
+        string[] testArgs = [ "first", "-s", "-v" ];
+        var cmd = CmdLine.ParseRawWithHelp<TopCommand>(testArgs).Unwrap();
+        Assert.Equal(new TopCommand { Verbose = true, SubCommand = new SubCommand.FirstCommand() { SomeOption = true } }, cmd);
+    }
+
+    [Fact]
+    public void MixedOptionsAfterSubcommandReordered()
+    {
+        // Test that parent option can come before subcommand option
+        string[] testArgs = [ "first", "-v", "-s" ];
+        var cmd = CmdLine.ParseRawWithHelp<TopCommand>(testArgs).Unwrap();
+        Assert.Equal(new TopCommand { Verbose = true, SubCommand = new SubCommand.FirstCommand() { SomeOption = true } }, cmd);
+    }
+
+    [Fact]
+    public void ConflictingOptionsBetweenParentAndSubcommand()
+    {
+        // If an option exists in both parent and subcommand, an error should be produced unconditionally
+        var ex = Assert.Throws<ArgumentSyntaxException>(() => 
+            CmdLine.ParseRawWithHelp<ConflictCommand>([ "conflict" ]));
+        Assert.Contains("defined in both parent command and subcommand", ex.Message);
+    }
+
+    [GenerateDeserialize]
+    private partial record ConflictCommand
+    {
+        [CommandOption("-c|--conflict")]
+        public bool? ConflictOpt { get; init; }
+
+        [CommandGroup("command")]
+        public ConflictSubCommand? SubCommand { get; init; }
+    }
+
+    [GenerateDeserialize]
+    private abstract partial record ConflictSubCommand
+    {
+        private ConflictSubCommand() { }
+
+        [Command("conflict")]
+        public sealed partial record ConflictCase : ConflictSubCommand
+        {
+            [CommandOption("-c|--conflict")]  // Same option as parent - should cause error
+            public bool? ConflictOpt { get; init; }
+        }
+    }
+
     [GenerateDeserialize]
     private partial record TopCommand
     {
