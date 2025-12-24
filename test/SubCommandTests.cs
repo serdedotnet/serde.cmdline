@@ -25,6 +25,14 @@ public sealed partial class SubCommandTests
     }
 
     [Fact]
+    public void FirstCommandOutOfOrder()
+    {
+        string[] testArgs = [ "first", "-v" ];
+        var cmd = CmdLine.ParseRawWithHelp<TopCommand>(testArgs).Unwrap();
+        Assert.Equal(new TopCommand { Verbose = true, SubCommand = new SubCommand.FirstCommand() }, cmd);
+    }
+
+    [Fact]
     public void FirstCommandWithShortOption()
     {
         string[] testArgs = [ "-v", "first", "-s" ];

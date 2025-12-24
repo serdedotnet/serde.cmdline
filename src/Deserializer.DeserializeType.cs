@@ -14,6 +14,7 @@ internal sealed partial class Deserializer
     ) : ITypeDeserializer
     {
         private readonly Command _command = ParseCommand(serdeInfo);
+        private readonly List<string> _skippedOptions = new();
 
         (int, string?) ITypeDeserializer.TryReadIndexWithName(ISerdeInfo serdeInfo) => TryReadIndexWithName(serdeInfo);
 
@@ -21,7 +22,7 @@ internal sealed partial class Deserializer
         {
             if (_deserializer._argIndex == _deserializer._args.Length)
             {
-                return (ITypeDeserializer.EndOfType, null);
+                goto endOfType;
             }
 
             var arg = _deserializer._args[_deserializer._argIndex];
@@ -31,17 +32,47 @@ internal sealed partial class Deserializer
                 _deserializer._helpInfos.Add(serdeInfo);
                 if (_deserializer._argIndex == _deserializer._args.Length)
                 {
-                    return (ITypeDeserializer.EndOfType, null);
+                    goto endOfType;
                 }
                 arg = _deserializer._args[_deserializer._argIndex];
             }
-            var (fieldIndex, errorName) = CheckFields(arg);
+
+            var (fieldIndex, incArgs,errorName) = CheckFields(arg);
             if (fieldIndex >= 0)
             {
+                if (incArgs)
+                {
+                    _deserializer._argIndex++;
+                }
                 return (fieldIndex, errorName);
             }
 
+            if (arg.StartsWith('-'))
+            {
+                // It's an option we don't recognize, so skip it for checking later
+                _skippedOptions.Add(arg);
+                // Don't skip the arg, since the SkipValue call will do that
+                return (ITypeDeserializer.IndexNotFound, null);
+            }
+
             throw new ArgumentSyntaxException($"Unexpected argument: '{arg}'");
+
+        endOfType:
+            // Before we leave we need to check all skipped options, then add any skipped options
+            // we've recorded to the parent deserializer.
+            for (int i = 0; i < _deserializer._skippedOptions.Count; i++)
+            {
+                var skipped = _deserializer._skippedOptions[i];
+                var (skippedIndex, _, _) = CheckFields(skipped);
+                if (skippedIndex >= 0)
+                {
+                    _deserializer._skippedOptions.RemoveAt(i);
+                    return (skippedIndex, null);
+                }
+            }
+            _deserializer._skippedOptions.AddRange(_skippedOptions);
+            _skippedOptions.Clear();
+            return (ITypeDeserializer.EndOfType, null);
         }
 
         int ITypeDeserializer.TryReadIndex(ISerdeInfo info)
@@ -50,7 +81,7 @@ internal sealed partial class Deserializer
             return fieldIndex;
         }
 
-        private (int, string?) CheckFields(string arg)
+        private (int fieldIndex, bool incArgs, string? errorName) CheckFields(string arg)
         {
             var cmd = _command;
             if (arg.StartsWith('-'))
@@ -62,13 +93,12 @@ internal sealed partial class Deserializer
                     {
                         if (name == arg)
                         {
-                            _deserializer._argIndex++;
-                            return (option.FieldIndex, null);
+                            return (option.FieldIndex, true, null);
                         }
                     }
                 }
                 // No option match, return missing
-                return (-1, null);
+                return (-1, false, null);
             }
 
             // Check for command group matches
@@ -76,8 +106,7 @@ internal sealed partial class Deserializer
             {
                 if (arg == subCmd.Name)
                 {
-                    _deserializer._argIndex++;
-                    return (subCmd.FieldIndex, null);
+                    return (subCmd.FieldIndex, true, null);
                 }
             }
 
@@ -87,7 +116,7 @@ internal sealed partial class Deserializer
                 {
                     if (name == arg)
                     {
-                        return (cmdGroup.FieldIndex, null);
+                        return (cmdGroup.FieldIndex, false, null);
                     }
                 }
 
@@ -100,11 +129,10 @@ internal sealed partial class Deserializer
                 // Parameters are positional, so we check the current param index
                 if (_deserializer._paramIndex == param.Ordinal)
                 {
-                    _deserializer._paramIndex++;
-                    return (param.FieldIndex, null);
+                    return (param.FieldIndex, true, null);
                 }
             }
-            return (-1, null);
+            return (-1, false, null);
         }
 
         private static Command ParseCommand(ISerdeInfo serdeInfo)

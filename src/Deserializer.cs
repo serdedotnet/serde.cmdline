@@ -1,6 +1,7 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 
 namespace Serde.CmdLine;
 
@@ -11,10 +12,16 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
     private int _argIndex = 0;
     private int _paramIndex = 0;
     private readonly List<ISerdeInfo> _helpInfos = new();
+    // We keep a list of skipped options because options from parent commands are inherited by
+    // subcommands.
+    private readonly List<string> _skippedOptions = new();
 
     public IReadOnlyList<ISerdeInfo> HelpInfos => _helpInfos;
 
-    public ITypeDeserializer ReadType(ISerdeInfo typeInfo) => new DeserializeType(this, typeInfo);
+    public ITypeDeserializer ReadType(ISerdeInfo typeInfo)
+    {
+        return new DeserializeType(this, typeInfo);
+    }
 
     public bool ReadBool()
     {
