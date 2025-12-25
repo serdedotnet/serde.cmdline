@@ -23,7 +23,7 @@ public static class CmdLine
     public static ParsedArgsOrHelpInfos<T> ParseRawWithHelp<T>(string[] args)
         where T : IDeserializeProvider<T>
     {
-        var deserializer = new Deserializer(args, handleHelp: true);
+        using var deserializer = new Deserializer(args, handleHelp: true);
         try
         {
             var cmd = T.Instance.Deserialize(deserializer);
@@ -54,9 +54,9 @@ public static class CmdLine
     /// </summary>
     public static T ParseRaw<T>(string[] args) where T : IDeserializeProvider<T>
     {
-        var deserializer = new Deserializer(args, handleHelp: false);
         try
         {
+            using var deserializer = new Deserializer(args, handleHelp: false);
             return T.Instance.Deserialize(deserializer);
         }
         catch (DeserializeException e)

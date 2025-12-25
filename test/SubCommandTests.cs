@@ -33,6 +33,21 @@ public sealed partial class SubCommandTests
     }
 
     [Fact]
+    public void FirstCommandOutOfOrderStringOption()
+    {
+        string[] testArgs = [ "first", "-s", "value" ];
+        var cmd = CmdLine.ParseRawWithHelp<TopCommand>(testArgs).Unwrap();
+        Assert.Equal(new TopCommand { StringOption = "value", SubCommand = new SubCommand.FirstCommand() }, cmd);
+    }
+
+    [Fact]
+    public void FirstCommandUnknownOption()
+    {
+        string[] testArgs = [ "first", "-t" ];
+        Assert.Throws<ArgumentSyntaxException>(() => CmdLine.ParseRawWithHelp<TopCommand>(testArgs));
+    }
+
+    [Fact]
     public void FirstCommandWithShortOption()
     {
         string[] testArgs = [ "-v", "first", "-s" ];
@@ -75,6 +90,9 @@ Commands:
 
         [CommandOption("-h|--help")]
         public bool? Help { get; init; }
+
+        [CommandOption("-s|--string-option")]
+        public string? StringOption { get; init; }
 
         [CommandGroup("command")]
         public SubCommand? SubCommand { get; init; }

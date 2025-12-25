@@ -72,5 +72,11 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
     public DateTime ReadDateTime() => throw new NotImplementedException();
     public void ReadBytes(IBufferWriter<byte> writer) => throw new NotImplementedException();
 
-    public void Dispose() { }
+    public void Dispose()
+    {
+        if (_skippedOptions.Count > 0)
+        {
+            throw new ArgumentSyntaxException($"Unexpected argument: '{_skippedOptions[0]}'");
+        }
+    }
 }
