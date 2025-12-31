@@ -12,31 +12,43 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
     private int _argIndex = 0;
     private int _paramIndex = 0;
     private readonly List<ISerdeInfo> _helpInfos = new();
+    // We keep a stack of commands so nested commands can check parent options.
+    private readonly List<Command> _commandStack = new();
     // We keep a list of skipped options because options from parent commands are inherited by
     // subcommands.
     private readonly List<string> _skippedOptions = new();
+    private bool _checkingSkipped = false;
+    private int _skipIndex = -1;
 
     public IReadOnlyList<ISerdeInfo> HelpInfos => _helpInfos;
 
     public ITypeDeserializer ReadType(ISerdeInfo typeInfo)
     {
-        return new DeserializeType(this, typeInfo);
+        var cmd = DeserializeType.ParseCommand(typeInfo);
+        _commandStack.Add(cmd);
+        return new DeserializeType(this, cmd);
     }
 
     public bool ReadBool()
     {
-        // Flags are a little tricky. They can be specified as --flag or '--flag true' or '--flag false'.
-        // There's no way to know for sure whether the current argument is a flag or a value, so we'll
-        // try to parse it as a bool. If it fails, we'll assume it's a flag and return true.
-        if (_argIndex == _args.Length || !bool.TryParse(_args[_argIndex], out bool value))
-        {
-            return true;
-        }
-        _argIndex++;
-        return value;
+        // Assume that if we got here we saw a flag option
+        return true;
     }
 
-    public string ReadString() => _args[_argIndex++];
+    public string ReadString()
+    {
+        if (_checkingSkipped)
+        {
+            var str = _skippedOptions[_skipIndex];
+            _skippedOptions.RemoveAt(_skipIndex);
+            _skipIndex = -1;
+            return str;
+        }
+        else
+        {
+            return _args[_argIndex++];
+        }
+    }
 
     public T ReadNullableRef<T>(IDeserialize<T> d)
         where T : class

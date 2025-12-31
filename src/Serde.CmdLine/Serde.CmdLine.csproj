@@ -15,7 +15,12 @@
     <PackageReference Include="Spectre.Console" />
 
     <PackageReference Include="StaticCs" />
+  </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="../Serde.CmdLine.Analyzers/Serde.CmdLine.Analyzers.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>

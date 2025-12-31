@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\src\Serde.CmdLine.csproj" />
+    <ProjectReference Include="..\src\Serde.CmdLine\Serde.CmdLine.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -10,95 +10,159 @@ internal sealed partial class Deserializer
 {
     private sealed class DeserializeType(
         Deserializer _deserializer,
-        ISerdeInfo serdeInfo
+        Command _command
     ) : ITypeDeserializer
     {
-        private readonly Command _command = ParseCommand(serdeInfo);
         private readonly List<string> _skippedOptions = new();
 
-        (int, string?) ITypeDeserializer.TryReadIndexWithName(ISerdeInfo serdeInfo) => TryReadIndexWithName(serdeInfo);
-
-        private (int, string?) TryReadIndexWithName(ISerdeInfo serdeInfo)
+        void IDisposable.Dispose()
         {
-            if (_deserializer._argIndex == _deserializer._args.Length)
-            {
-                goto endOfType;
-            }
-
-            var arg = _deserializer._args[_deserializer._argIndex];
-            while (_deserializer._handleHelp && arg is "-h" or "--help")
-            {
-                _deserializer._argIndex++;
-                _deserializer._helpInfos.Add(serdeInfo);
-                if (_deserializer._argIndex == _deserializer._args.Length)
-                {
-                    goto endOfType;
-                }
-                arg = _deserializer._args[_deserializer._argIndex];
-            }
-
-            var (fieldIndex, incArgs,errorName) = CheckFields(arg);
-            if (fieldIndex >= 0)
-            {
-                if (incArgs)
-                {
-                    _deserializer._argIndex++;
-                }
-                return (fieldIndex, errorName);
-            }
-
-            if (arg.StartsWith('-'))
-            {
-                // It's an option we don't recognize, so skip it for checking later
-                _skippedOptions.Add(arg);
-                // Don't skip the arg, since the SkipValue call will do that
-                return (ITypeDeserializer.IndexNotFound, null);
-            }
-
-            throw new ArgumentSyntaxException($"Unexpected argument: '{arg}'");
-
-        endOfType:
-            // Before we leave we need to check all skipped options, then add any skipped options
-            // we've recorded to the parent deserializer.
-            for (int i = 0; i < _deserializer._skippedOptions.Count; i++)
-            {
-                var skipped = _deserializer._skippedOptions[i];
-                var (skippedIndex, _, _) = CheckFields(skipped);
-                if (skippedIndex >= 0)
-                {
-                    _deserializer._skippedOptions.RemoveAt(i);
-                    return (skippedIndex, null);
-                }
-            }
-            _deserializer._skippedOptions.AddRange(_skippedOptions);
-            _skippedOptions.Clear();
-            return (ITypeDeserializer.EndOfType, null);
+            // Pop the command stack
+            _deserializer._commandStack.RemoveAt(_deserializer._commandStack.Count - 1);
+            _deserializer._checkingSkipped = false;
         }
 
-        int ITypeDeserializer.TryReadIndex(ISerdeInfo info)
+        (int, string?) ITypeDeserializer.TryReadIndexWithName(ISerdeInfo serdeInfo) => (TryReadIndex(serdeInfo), null);
+
+        private int TryReadIndex(ISerdeInfo serdeInfo)
         {
-            var (fieldIndex, _) = TryReadIndexWithName(info);
-            return fieldIndex;
+            if (_deserializer._checkingSkipped)
+            {
+                return CheckSkippedOptions();
+            }
+
+            // Loop until we find a matching field, or run out of args
+            ref int argIndex = ref _deserializer._argIndex;
+            string[] args = _deserializer._args;
+            while (true)
+            {
+                if (argIndex > args.Length)
+                {
+                    throw new InvalidOperationException("Argument index exceeded argument length.");
+                }
+
+                if (argIndex == args.Length)
+                {
+                    _deserializer._checkingSkipped = true;
+                    return CheckSkippedOptions();
+                }
+
+                var arg = args[argIndex];
+                if (_deserializer._handleHelp && arg is "-h" or "--help")
+                {
+                    argIndex++;
+                    _deserializer._helpInfos.Add(serdeInfo);
+                    continue;
+                }
+
+                var (fieldIndex, incArgs) = CheckFields(arg);
+                if (fieldIndex >= 0)
+                {
+                    if (incArgs)
+                    {
+                        argIndex++;
+                    }
+                    return fieldIndex;
+                }
+
+                // No match, so check parent options
+                if (arg.StartsWith('-') && IsParentOption(args, ref argIndex))
+                {
+                    continue;
+                }
+
+                // Unrecognized argument
+                throw new ArgumentSyntaxException($"Unexpected argument: '{arg}'");
+            }
         }
 
-        private (int fieldIndex, bool incArgs, string? errorName) CheckFields(string arg)
+        /// <summary>
+        /// Given a list of args and an arg index, check to see if the current arg matches any
+        /// options from parent commands.  If a match is found, advance the arg index appropriately
+        /// and record the skipped option.
+        /// </summary>
+        private bool IsParentOption(ReadOnlySpan<string> args, ref int argIndex)
         {
-            var cmd = _command;
-            if (arg.StartsWith('-'))
+            var arg = args[argIndex];
+            // It's an option we don't recognize, so we will check the parent deserializer.
+            // We need to immediately check if it's valid because we need to know how many
+            // args to skip. However, the actual value parsing needs to be done later because
+            // the parent field is part of the parent type.
+            // N.B. The top of the stack is the current command
+            for (int ci = _deserializer._commandStack.Count - 2; ci >= 0; ci--)
             {
-                // It's an option, so check options
-                foreach (var option in cmd.Options)
+                var parentCmd = _deserializer._commandStack[ci];
+                foreach (var option in parentCmd.Options)
                 {
                     foreach (var name in option.FlagNames)
                     {
                         if (name == arg)
                         {
-                            return (option.FieldIndex, true, null);
+                            _skippedOptions.Add(arg);
+                            argIndex++;
+                            // If this is not a bool flag, we need to skip the next arg as well
+                            if (option.HasArg)
+                            {
+                                _skippedOptions.Add(args[argIndex]);
+                                argIndex++;
+                            }
+                            return true;
                         }
                     }
                 }
-                // No option match, return missing
-                return (-1, false, null);
+            }
+            return false;
+        }
+
+        private int CheckSkippedOptions()
+        {
+            // Before we leave we need to check all skipped options, then add any skipped options
+            // we've recorded to the parent deserializer.
+            for (int skipIndex = 0; skipIndex < _deserializer._skippedOptions.Count; skipIndex++)
+            {
+                var skipped = _deserializer._skippedOptions[skipIndex];
+                if (CheckOptions(_command, skipped) is {} opt)
+                {
+                    _deserializer._skippedOptions.RemoveAt(skipIndex);
+                    _deserializer._skipIndex = skipIndex;
+                    return opt.FieldIndex;
+                }
+            }
+            _deserializer._skippedOptions.AddRange(_skippedOptions);
+            _skippedOptions.Clear();
+            return ITypeDeserializer.EndOfType;
+        }
+
+        int ITypeDeserializer.TryReadIndex(ISerdeInfo info)
+        {
+            return TryReadIndex(info);
+        }
+
+        /// <summary>
+        /// Check if the given argument matches any options in the current command.
+        /// </summary>
+        private static Option? CheckOptions(Command cmd, string arg)
+        {
+            foreach (var option in cmd.Options)
+            {
+                foreach (var name in option.FlagNames)
+                {
+                    if (name == arg)
+                    {
+                        return option;
+                    }
+                }
+            }
+            return null;
+        }
+
+        private (int fieldIndex, bool incArgs) CheckFields(string arg)
+        {
+            var cmd = _command;
+            if (arg.StartsWith('-'))
+            {
+                var fieldIndex = CheckOptions(cmd, arg)?.FieldIndex ?? -1;
+                return (fieldIndex, fieldIndex >= 0);
             }
 
             // Check for command group matches
@@ -106,7 +170,7 @@ internal sealed partial class Deserializer
             {
                 if (arg == subCmd.Name)
                 {
-                    return (subCmd.FieldIndex, true, null);
+                    return (subCmd.FieldIndex, true);
                 }
             }
 
@@ -116,7 +180,7 @@ internal sealed partial class Deserializer
                 {
                     if (name == arg)
                     {
-                        return (cmdGroup.FieldIndex, false, null);
+                        return (cmdGroup.FieldIndex, false);
                     }
                 }
 
@@ -129,13 +193,13 @@ internal sealed partial class Deserializer
                 // Parameters are positional, so we check the current param index
                 if (_deserializer._paramIndex == param.Ordinal)
                 {
-                    return (param.FieldIndex, true, null);
+                    return (param.FieldIndex, false);
                 }
             }
-            return (-1, false, null);
+            return (-1, false);
         }
 
-        private static Command ParseCommand(ISerdeInfo serdeInfo)
+        public static Command ParseCommand(ISerdeInfo serdeInfo)
         {
             var options = ImmutableArray.CreateBuilder<Option>();
             var subCmdNames = ImmutableArray.CreateBuilder<SubCommand>();
@@ -153,7 +217,16 @@ internal sealed partial class Deserializer
                         })
                     {
                         var flagNamesArray = flagNames.Split('|');
-                        options.Add(new Option(flagNamesArray.ToImmutableArray(), fieldIndex));
+#pragma warning disable SerdeExperimentalFieldInfo // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+                        var fieldInfo = serdeInfo.GetFieldInfo(fieldIndex);
+                        if (fieldInfo.Kind == InfoKind.Nullable)
+                        {
+                            // Unwrap nullable if present
+                            fieldInfo = fieldInfo.GetFieldInfo(0);
+                        }
+                        var hasArg = fieldInfo.Name == "bool" ? false : true;
+#pragma warning restore SerdeExperimentalFieldInfo // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+                        options.Add(new Option(flagNamesArray.ToImmutableArray(), fieldIndex, hasArg));
                     }
                     else if (attr is
                         {
@@ -249,7 +322,10 @@ internal sealed partial class Deserializer
 
         sbyte ITypeDeserializer.ReadI8(ISerdeInfo info, int index) => _deserializer.ReadI8();
 
-        string ITypeDeserializer.ReadString(ISerdeInfo info, int index) => _deserializer.ReadString();
+        string ITypeDeserializer.ReadString(ISerdeInfo info, int index)
+        {
+            return _deserializer.ReadString();
+        }
 
         ushort ITypeDeserializer.ReadU16(ISerdeInfo info, int index) => _deserializer.ReadU16();
 

@@ -3,7 +3,11 @@ using System.Collections.Immutable;
 
 namespace Serde.CmdLine;
 
-internal record struct Option(ImmutableArray<string> FlagNames, int FieldIndex);
+internal record struct Option(
+    ImmutableArray<string> FlagNames,
+    int FieldIndex,
+    bool HasArg
+);
 
 internal record struct SubCommand(string Name, int FieldIndex);
 
