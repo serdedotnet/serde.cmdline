@@ -2,16 +2,13 @@
 name: publish
 on:
   workflow_dispatch:  # Manual trigger from GitHub Actions UI
-  release:
-    types: [ published ]
 
 jobs:
   pack:
     runs-on: ubuntu-latest
     permissions:
       id-token: write  # Required for trusted publishing OIDC token
-      contents: write  # Required to create version bump PR
-      pull-requests: write
+      contents: write  # Required to create GitHub release
 
     steps:
     - uses: actions/checkout@v2
@@ -21,6 +18,11 @@ jobs:
         dotnet-version: 10.0.*
     - name: Pack
       run: dotnet pack
+    - name: Get version
+      id: version
+      run: |
+        VERSION=$(grep -oP '(?<=<PackageVersion>)[^<]+' src/Serde.CmdLine/Serde.CmdLine.csproj)
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
     - name: NuGet login (OIDC)
       uses: NuGet/login@v1
       id: nuget-login
@@ -28,27 +30,7 @@ jobs:
         user: ${{ secrets.NUGET_USER }}
     - name: Publish package
       run: dotnet nuget push --skip-duplicate -k ${{ steps.nuget-login.outputs.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json artifacts/package/release/*.nupkg
-
-    - name: Bump version
-      run: |
-        # Read current version
-        VERSION=$(grep -oP '(?<=<PackageVersion>)[^<]+' src/Serde.CmdLine/Serde.CmdLine.csproj)
-        
-        # Parse and increment patch version
-        IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
-        NEW_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
-        
-        # Update the csproj file
-        sed -i "s/<PackageVersion>$VERSION</<PackageVersion>$NEW_VERSION</" src/Serde.CmdLine/Serde.CmdLine.csproj
-        
-        echo "Bumped version from $VERSION to $NEW_VERSION"
-        echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
-
-    - name: Create Pull Request
-      uses: peter-evans/create-pull-request@v7
-      with:
-        commit-message: "Bump version to ${{ env.NEW_VERSION }}"
-        title: "Bump version to ${{ env.NEW_VERSION }}"
-        body: "Automated version bump after publishing ${{ env.NEW_VERSION }} to NuGet."
-        branch: "version-bump/${{ env.NEW_VERSION }}"
-        delete-branch: true
+    - name: Create GitHub Release
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: gh release create "v${{ steps.version.outputs.VERSION }}" --generate-notes --draft
