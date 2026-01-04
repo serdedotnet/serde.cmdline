@@ -7,7 +7,7 @@
     <IsTrimmable>true</IsTrimmable>
     <IsAotCompatible>true</IsAotCompatible>
 
-    <PackageVersion>0.1.0</PackageVersion>
+    <PackageVersion>0.1.1</PackageVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,8 +19,14 @@
 
   <ItemGroup>
     <ProjectReference Include="../Serde.CmdLine.Analyzers/Serde.CmdLine.Analyzers.csproj"
-                      OutputItemType="Analyzer"
+                      OutputItemType="CmdlineAnalyzers"
                       ReferenceOutputAssembly="false" />
   </ItemGroup>
+
+  <Target Name="PackAnalyzer" BeforeTargets="_GetPackageFiles" DependsOnTargets="ResolveProjectReferences">
+    <ItemGroup>
+      <None Include="@(CmdlineAnalyzers)" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    </ItemGroup>
+  </Target>
 
 </Project>
