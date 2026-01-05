@@ -16,9 +16,6 @@ internal sealed partial record FileSizeCommand
 
     [CommandOption("--hidden")]
     public bool? IncludeHidden { get; init; }
-
-    [CommandOption("-h|--help")]
-    public bool? Help { get; init; }
 }
 
 var console = AnsiConsole.Out;
