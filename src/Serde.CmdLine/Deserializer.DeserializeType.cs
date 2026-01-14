@@ -338,6 +338,15 @@ internal sealed partial class Deserializer
         DateTime ITypeDeserializer.ReadDateTime(ISerdeInfo info, int index)
             => _deserializer.ReadDateTime();
 
+        DateTimeOffset ITypeDeserializer.ReadDateTimeOffset(ISerdeInfo info, int index)
+            => _deserializer.ReadDateTimeOffset();
+
+        Int128 ITypeDeserializer.ReadI128(ISerdeInfo info, int index)
+            => _deserializer.ReadI128();
+
+        UInt128 ITypeDeserializer.ReadU128(ISerdeInfo info, int index)
+            => _deserializer.ReadU128();
+
         void ITypeDeserializer.ReadBytes(ISerdeInfo info, int index, IBufferWriter<byte> writer)
             => _deserializer.ReadBytes(writer);
     }
