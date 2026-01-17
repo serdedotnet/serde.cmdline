@@ -3,6 +3,30 @@ using System.Collections.Immutable;
 
 namespace Serde.CmdLine;
 
+internal enum FieldKind
+{
+    /// <summary>
+    /// No field matched
+    /// </summary>
+    None,
+    /// <summary>
+    /// An option field matched (requires incrementing arg index)
+    /// </summary>
+    Option,
+    /// <summary>
+    /// A subcommand field matched (requires incrementing arg index)
+    /// </summary>
+    SubCommand,
+    /// <summary>
+    /// A command group field matched (does not increment arg index)
+    /// </summary>
+    CommandGroup,
+    /// <summary>
+    /// A parameter field matched (requires incrementing param index)
+    /// </summary>
+    Parameter
+}
+
 internal record struct Option(
     ImmutableArray<string> FlagNames,
     int FieldIndex,

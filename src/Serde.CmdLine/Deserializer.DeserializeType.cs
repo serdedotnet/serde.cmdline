@@ -55,16 +55,19 @@ internal sealed partial class Deserializer
                     continue;
                 }
 
-                var (fieldIndex, incArgs, isParameter) = CheckFields(arg);
+                var (fieldIndex, fieldKind) = CheckFields(arg);
                 if (fieldIndex >= 0)
                 {
-                    if (incArgs)
+                    // Increment indices based on field type
+                    switch (fieldKind)
                     {
-                        argIndex++;
-                    }
-                    if (isParameter)
-                    {
-                        _deserializer._paramIndex++;
+                        case FieldKind.Option:
+                        case FieldKind.SubCommand:
+                            argIndex++;
+                            break;
+                        case FieldKind.Parameter:
+                            _deserializer._paramIndex++;
+                            break;
                     }
                     return fieldIndex;
                 }
@@ -160,13 +163,13 @@ internal sealed partial class Deserializer
             return null;
         }
 
-        private (int fieldIndex, bool incArgs, bool isParameter) CheckFields(string arg)
+        private (int fieldIndex, FieldKind fieldKind) CheckFields(string arg)
         {
             var cmd = _command;
             if (arg.StartsWith('-'))
             {
                 var fieldIndex = CheckOptions(cmd, arg)?.FieldIndex ?? -1;
-                return (fieldIndex, fieldIndex >= 0, false);
+                return (fieldIndex, fieldIndex >= 0 ? FieldKind.Option : FieldKind.None);
             }
 
             // Check for command group matches
@@ -174,7 +177,7 @@ internal sealed partial class Deserializer
             {
                 if (arg == subCmd.Name)
                 {
-                    return (subCmd.FieldIndex, true, false);
+                    return (subCmd.FieldIndex, FieldKind.SubCommand);
                 }
             }
 
@@ -184,7 +187,7 @@ internal sealed partial class Deserializer
                 {
                     if (name == arg)
                     {
-                        return (cmdGroup.FieldIndex, false, false);
+                        return (cmdGroup.FieldIndex, FieldKind.CommandGroup);
                     }
                 }
 
@@ -197,10 +200,10 @@ internal sealed partial class Deserializer
                 // Parameters are positional, so we check the current param index
                 if (_deserializer._paramIndex == param.Ordinal)
                 {
-                    return (param.FieldIndex, false, true);
+                    return (param.FieldIndex, FieldKind.Parameter);
                 }
             }
-            return (-1, false, false);
+            return (-1, FieldKind.None);
         }
 
         public static Command ParseCommand(ISerdeInfo serdeInfo)
