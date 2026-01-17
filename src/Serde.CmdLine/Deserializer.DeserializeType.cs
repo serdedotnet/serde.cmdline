@@ -193,6 +193,7 @@ internal sealed partial class Deserializer
                 // Parameters are positional, so we check the current param index
                 if (_deserializer._paramIndex == param.Ordinal)
                 {
+                    _deserializer._paramIndex++;
                     return (param.FieldIndex, false);
                 }
             }
