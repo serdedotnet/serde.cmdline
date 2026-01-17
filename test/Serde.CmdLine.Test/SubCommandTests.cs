@@ -191,4 +191,47 @@ Commands:
         [Command("second")]
         public sealed partial record SecondCommand : SubCommand;
     }
+
+    /// <summary>
+    /// Test to verify that two command parameters in a nested subcommand are parsed correctly.
+    /// This test is designed to reproduce a bug where the second parameter is parsed as a
+    /// duplicate of the first parameter due to _paramIndex not being incremented.
+    /// </summary>
+    [Fact]
+    public void NestedSubCommandWithTwoParameters()
+    {
+        string[] testArgs = [ "copy", "source.txt", "dest.txt" ];
+        var cmd = CmdLine.ParseRawWithHelp<CommandWithParams>(testArgs).Unwrap();
+        Assert.Equal(new CommandWithParams
+        {
+            SubCommandWithParams = new SubCommandWithParams.CopyCommand
+            {
+                Source = "source.txt",
+                Destination = "dest.txt"
+            }
+        }, cmd);
+    }
+
+    [GenerateDeserialize]
+    private partial record CommandWithParams
+    {
+        [CommandGroup("command")]
+        public SubCommandWithParams? SubCommandWithParams { get; init; }
+    }
+
+    [GenerateDeserialize]
+    private abstract partial record SubCommandWithParams
+    {
+        private SubCommandWithParams() { }
+
+        [Command("copy")]
+        public sealed partial record CopyCommand : SubCommandWithParams
+        {
+            [CommandParameter(0, "source")]
+            public string? Source { get; init; }
+
+            [CommandParameter(1, "destination")]
+            public string? Destination { get; init; }
+        }
+    }
 }
