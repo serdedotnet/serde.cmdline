@@ -55,12 +55,16 @@ internal sealed partial class Deserializer
                     continue;
                 }
 
-                var (fieldIndex, incArgs) = CheckFields(arg);
+                var (fieldIndex, incArgs, isParameter) = CheckFields(arg);
                 if (fieldIndex >= 0)
                 {
                     if (incArgs)
                     {
                         argIndex++;
+                    }
+                    if (isParameter)
+                    {
+                        _deserializer._paramIndex++;
                     }
                     return fieldIndex;
                 }
@@ -156,13 +160,13 @@ internal sealed partial class Deserializer
             return null;
         }
 
-        private (int fieldIndex, bool incArgs) CheckFields(string arg)
+        private (int fieldIndex, bool incArgs, bool isParameter) CheckFields(string arg)
         {
             var cmd = _command;
             if (arg.StartsWith('-'))
             {
                 var fieldIndex = CheckOptions(cmd, arg)?.FieldIndex ?? -1;
-                return (fieldIndex, fieldIndex >= 0);
+                return (fieldIndex, fieldIndex >= 0, false);
             }
 
             // Check for command group matches
@@ -170,7 +174,7 @@ internal sealed partial class Deserializer
             {
                 if (arg == subCmd.Name)
                 {
-                    return (subCmd.FieldIndex, true);
+                    return (subCmd.FieldIndex, true, false);
                 }
             }
 
@@ -180,7 +184,7 @@ internal sealed partial class Deserializer
                 {
                     if (name == arg)
                     {
-                        return (cmdGroup.FieldIndex, false);
+                        return (cmdGroup.FieldIndex, false, false);
                     }
                 }
 
@@ -193,11 +197,10 @@ internal sealed partial class Deserializer
                 // Parameters are positional, so we check the current param index
                 if (_deserializer._paramIndex == param.Ordinal)
                 {
-                    _deserializer._paramIndex++;
-                    return (param.FieldIndex, false);
+                    return (param.FieldIndex, false, true);
                 }
             }
-            return (-1, false);
+            return (-1, false, false);
         }
 
         public static Command ParseCommand(ISerdeInfo serdeInfo)
