@@ -115,4 +115,34 @@ Options:
         [CommandParameter(0, "arg")]
         public required string Arg { get; init; }
     }
+
+    [Fact]
+    public void NumericOptionsTest()
+    {
+        string[] cmdLine = [ "--count", "42", "--ratio", "1.5", "--big", "9000000000", "9" ];
+        var cmd = CmdLine.ParseRawWithHelp<NumericCommand>(cmdLine).Unwrap();
+        Assert.Equal(new NumericCommand
+        {
+            Count = 42,
+            Ratio = 1.5,
+            Big = 9_000_000_000L,
+            Ordinal = 9,
+        }, cmd);
+    }
+
+    [GenerateDeserialize]
+    private sealed partial record NumericCommand
+    {
+        [CommandOption("--count")]
+        public int? Count { get; init; }
+
+        [CommandOption("--ratio")]
+        public double? Ratio { get; init; }
+
+        [CommandOption("--big")]
+        public long? Big { get; init; }
+
+        [CommandParameter(0, "ordinal")]
+        public required int Ordinal { get; init; }
+    }
 }
