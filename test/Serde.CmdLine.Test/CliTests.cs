@@ -94,6 +94,53 @@ Options:
         public bool? Help { get; init; }
     }
 
+    [GenerateDeserialize]
+    internal sealed partial record HiddenMembersCommand
+    {
+        [CommandParameter(0, "visibleArg", Description = "A visible argument.")]
+        public string? VisibleArg { get; init; }
+
+        [CommandParameter(1, "secretArg", Hidden = true)]
+        public string? SecretArg { get; init; }
+
+        [CommandOption("--visible")]
+        public bool? Visible { get; init; }
+
+        [CommandOption("--secret", Hidden = true)]
+        public bool? Secret { get; init; }
+    }
+
+    [Fact]
+    public void HiddenMembersStillParse()
+    {
+        string[] testArgs = [ "--secret", "firstArg", "secondArg" ];
+        var cmd = CmdLine.ParseRawWithHelp<HiddenMembersCommand>(testArgs).Unwrap();
+        Assert.Equal(new HiddenMembersCommand
+        {
+            VisibleArg = "firstArg",
+            SecretArg = "secondArg",
+            Visible = null,
+            Secret = true
+        }, cmd);
+    }
+
+    [Fact]
+    public void HiddenMembersNotInHelp()
+    {
+        var help = CmdLine.GetHelpText(SerdeInfoProvider.GetDeserializeInfo<HiddenMembersCommand>());
+        var text = """
+usage: HiddenMembersCommand [--visible] <visibleArg>
+
+Arguments:
+    <visibleArg>  A visible argument.
+
+Options:
+    --visible
+
+""";
+        Assert.Equal(text.NormalizeLineEndings(), help.NormalizeLineEndings());
+    }
+
     [Fact]
     public void BasicCommandTest()
     {
