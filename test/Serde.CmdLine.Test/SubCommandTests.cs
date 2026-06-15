@@ -190,6 +190,37 @@ Commands:
 
         [Command("second")]
         public sealed partial record SecondCommand : SubCommand;
+
+        [Command("hidden-command", Hidden = true)]
+        public sealed partial record HiddenCommand : SubCommand;
+    }
+
+    [Fact]
+    public void HiddenCommandStillParses()
+    {
+        string[] testArgs = [ "hidden-command" ];
+        var cmd = CmdLine.ParseRawWithHelp<TopCommand>(testArgs).Unwrap();
+        Assert.Equal(new TopCommand { SubCommand = new SubCommand.HiddenCommand() }, cmd);
+    }
+
+    [Fact]
+    public void HiddenCommandNotInHelp()
+    {
+        var help = CmdLine.GetHelpText(SerdeInfoProvider.GetDeserializeInfo<TopCommand>());
+        var text = """
+usage: TopCommand [-v | --verbose] [-h | --help] [-t | --string-option <stringOption>] <command>
+
+Options:
+    -v, --verbose
+    -h, --help
+    -t, --string-option  <stringOption>
+
+Commands:
+    first
+    second
+
+""";
+        Assert.Equal(text.NormalizeLineEndings(), help.NormalizeLineEndings());
     }
 
     /// <summary>

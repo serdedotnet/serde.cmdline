@@ -124,36 +124,39 @@ public static class CmdLine
                               ConstructorArguments: [ { Value: string flagNames } ],
                               NamedArguments: var namedArgs })
                 {
+                    if (IsHidden(namedArgs))
+                    {
+                        continue;
+                    }
                     // Consider nullable boolean fields as flag options.
 #pragma warning disable SerdeExperimentalFieldInfo
                     var optionName = targetInfo.GetFieldInfo(fieldIndex).Name == "bool?"
 #pragma warning restore SerdeExperimentalFieldInfo
                         ? null
                         : $"<{targetInfo.GetFieldStringName(fieldIndex)}>";
-                    string? desc = null;
-                    if (namedArgs is [ { MemberName: nameof(CommandParameterAttribute.Description),
-                                         TypedValue: { Value: string attrDesc } } ])
-                    {
-                        desc = attrDesc;
-                    }
+                    string? desc = GetDescription(namedArgs);
                     options.Add((flagNames.Split('|'), optionName, desc));
                 }
                 else if (attr is { AttributeType: { Name: nameof(CommandParameterAttribute) },
                                ConstructorArguments: [ { Value: int paramIndex }, { Value: string paramName } ],
                                NamedArguments: var namedArgs2 })
                 {
-                    string? desc = null;
-                    if (namedArgs2 is [ { MemberName: nameof(CommandParameterAttribute.Description),
-                                         TypedValue: { Value: string attrDesc } } ])
+                    if (IsHidden(namedArgs2))
                     {
-                        desc = attrDesc;
+                        continue;
                     }
+                    string? desc = GetDescription(namedArgs2);
                     args.Add(($"<{paramName}>", desc));
                 }
                 else if (attr is { AttributeType: { Name: nameof(CommandGroupAttribute) },
-                                   ConstructorArguments: [ { Value: string commandName }]
+                                   ConstructorArguments: [ { Value: string commandName }],
+                                   NamedArguments: var namedGroupArgs
                                  })
                 {
+                    if (IsHidden(namedGroupArgs))
+                    {
+                        continue;
+                    }
                     commandsName ??= commandName;
 #pragma warning disable SerdeExperimentalFieldInfo
                     var info = targetInfo.GetFieldInfo(fieldIndex);
@@ -169,8 +172,13 @@ public static class CmdLine
                         AddCommand(commands, caseInfo);
                     }
                 }
-                else if (attr is { AttributeType: { Name: nameof(CommandAttribute) } })
+                else if (attr is { AttributeType: { Name: nameof(CommandAttribute) },
+                                   NamedArguments: var namedCmdArgs })
                 {
+                    if (IsHidden(namedCmdArgs))
+                    {
+                        continue;
+                    }
 #pragma warning disable SerdeExperimentalFieldInfo
                     var info = targetInfo.GetFieldInfo(fieldIndex);
 #pragma warning restore SerdeExperimentalFieldInfo
@@ -195,6 +203,10 @@ public static class CmdLine
                                 NamedArguments: var namedCaseArgs
                             })
                         {
+                            if (IsHidden(namedCaseArgs))
+                            {
+                                return;
+                            }
                             cmdName = caseCmdName;
                             foreach (var namedArg in namedCaseArgs)
                             {
@@ -376,6 +388,31 @@ usage: {topLevelName}{optionsUsageShortString}{commandsName?.Map(n => $" <{n}>")
             }
         }
         return name;
+    }
+
+    private static bool IsHidden(IList<System.Reflection.CustomAttributeNamedArgument> namedArgs)
+    {
+        foreach (var namedArg in namedArgs)
+        {
+            if (namedArg is { MemberName: "Hidden", TypedValue: { Value: true } })
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static string? GetDescription(IList<System.Reflection.CustomAttributeNamedArgument> namedArgs)
+    {
+        foreach (var namedArg in namedArgs)
+        {
+            if (namedArg is { MemberName: "Description",
+                              TypedValue: { Value: string desc } })
+            {
+                return desc;
+            }
+        }
+        return null;
     }
 
 }
