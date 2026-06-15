@@ -25,3 +25,22 @@ if (cmdOpt is {} cmd)
    // handle cmd
 }
 ```
+
+## Hidden commands and options
+
+Commands, parameters, options, and command groups can be marked as `Hidden` so they
+are still parseable but omitted from the generated help text. This is useful for
+experimental, deprecated, or internal-only functionality.
+
+```
+[GenerateDeserialize]
+internal sealed partial record FileSizeCommand
+{
+    [CommandOption("-p|--pattern")]
+    public string? SearchPattern { get; init; }
+
+    // Parses normally, but does not appear in `CmdLine.GetHelpText` output.
+    [CommandOption("--experimental", Hidden = true)]
+    public bool? Experimental { get; init; }
+}
+```

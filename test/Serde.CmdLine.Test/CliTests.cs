@@ -94,6 +94,53 @@ Options:
         public bool? Help { get; init; }
     }
 
+    [GenerateDeserialize]
+    internal sealed partial record HiddenMembersCommand
+    {
+        [CommandParameter(0, "visibleArg", Description = "A visible argument.")]
+        public string? VisibleArg { get; init; }
+
+        [CommandParameter(1, "secretArg", Hidden = true)]
+        public string? SecretArg { get; init; }
+
+        [CommandOption("--visible")]
+        public bool? Visible { get; init; }
+
+        [CommandOption("--secret", Hidden = true)]
+        public bool? Secret { get; init; }
+    }
+
+    [Fact]
+    public void HiddenMembersStillParse()
+    {
+        string[] testArgs = [ "--secret", "firstArg", "secondArg" ];
+        var cmd = CmdLine.ParseRawWithHelp<HiddenMembersCommand>(testArgs).Unwrap();
+        Assert.Equal(new HiddenMembersCommand
+        {
+            VisibleArg = "firstArg",
+            SecretArg = "secondArg",
+            Visible = null,
+            Secret = true
+        }, cmd);
+    }
+
+    [Fact]
+    public void HiddenMembersNotInHelp()
+    {
+        var help = CmdLine.GetHelpText(SerdeInfoProvider.GetDeserializeInfo<HiddenMembersCommand>());
+        var text = """
+usage: HiddenMembersCommand [--visible] <visibleArg>
+
+Arguments:
+    <visibleArg>  A visible argument.
+
+Options:
+    --visible
+
+""";
+        Assert.Equal(text.NormalizeLineEndings(), help.NormalizeLineEndings());
+    }
+
     [Fact]
     public void BasicCommandTest()
     {
@@ -114,5 +161,35 @@ Options:
 
         [CommandParameter(0, "arg")]
         public required string Arg { get; init; }
+    }
+
+    [Fact]
+    public void NumericOptionsTest()
+    {
+        string[] cmdLine = [ "--count", "42", "--ratio", "1.5", "--big", "9000000000", "9" ];
+        var cmd = CmdLine.ParseRawWithHelp<NumericCommand>(cmdLine).Unwrap();
+        Assert.Equal(new NumericCommand
+        {
+            Count = 42,
+            Ratio = 1.5,
+            Big = 9_000_000_000L,
+            Ordinal = 9,
+        }, cmd);
+    }
+
+    [GenerateDeserialize]
+    private sealed partial record NumericCommand
+    {
+        [CommandOption("--count")]
+        public int? Count { get; init; }
+
+        [CommandOption("--ratio")]
+        public double? Ratio { get; init; }
+
+        [CommandOption("--big")]
+        public long? Big { get; init; }
+
+        [CommandParameter(0, "ordinal")]
+        public required int Ordinal { get; init; }
     }
 }

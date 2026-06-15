@@ -2,6 +2,7 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Globalization;
 
 namespace Serde.CmdLine;
 
@@ -58,33 +59,33 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
         return d.Deserialize(this);
     }
 
-    public char ReadChar() => throw new NotImplementedException();
+    public char ReadChar() => ReadString()[0];
 
-    public byte ReadU8() => throw new NotImplementedException();
+    public byte ReadU8() => byte.Parse(ReadString(), CultureInfo.InvariantCulture);
 
-    public ushort ReadU16() => throw new NotImplementedException();
+    public ushort ReadU16() => ushort.Parse(ReadString(), CultureInfo.InvariantCulture);
 
-    public uint ReadU32() => throw new NotImplementedException();
+    public uint ReadU32() => uint.Parse(ReadString(), CultureInfo.InvariantCulture);
 
-    public ulong ReadU64() => throw new NotImplementedException();
+    public ulong ReadU64() => ulong.Parse(ReadString(), CultureInfo.InvariantCulture);
 
-    public sbyte ReadI8() => throw new NotImplementedException();
+    public sbyte ReadI8() => sbyte.Parse(ReadString(), CultureInfo.InvariantCulture);
 
-    public short ReadI16() => throw new NotImplementedException();
+    public short ReadI16() => short.Parse(ReadString(), CultureInfo.InvariantCulture);
 
-    public int ReadI32() => throw new NotImplementedException();
+    public int ReadI32() => int.Parse(ReadString(), CultureInfo.InvariantCulture);
 
-    public long ReadI64() => throw new NotImplementedException();
+    public long ReadI64() => long.Parse(ReadString(), CultureInfo.InvariantCulture);
 
-    public float ReadF32() => throw new NotImplementedException();
+    public float ReadF32() => float.Parse(ReadString(), CultureInfo.InvariantCulture);
 
-    public double ReadF64() => throw new NotImplementedException();
+    public double ReadF64() => double.Parse(ReadString(), CultureInfo.InvariantCulture);
 
-    public decimal ReadDecimal() => throw new NotImplementedException();
+    public decimal ReadDecimal() => decimal.Parse(ReadString(), CultureInfo.InvariantCulture);
     public DateTime ReadDateTime() => throw new NotImplementedException();
     public DateTimeOffset ReadDateTimeOffset() => throw new NotImplementedException();
-    public Int128 ReadI128() => throw new NotImplementedException();
-    public UInt128 ReadU128() => throw new NotImplementedException();
+    public Int128 ReadI128() => Int128.Parse(ReadString(), CultureInfo.InvariantCulture);
+    public UInt128 ReadU128() => UInt128.Parse(ReadString(), CultureInfo.InvariantCulture);
     public void ReadBytes(IBufferWriter<byte> writer) => throw new NotImplementedException();
 
     public void Dispose()
