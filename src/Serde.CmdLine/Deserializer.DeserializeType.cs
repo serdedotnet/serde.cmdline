@@ -15,12 +15,19 @@ internal sealed partial class Deserializer
     {
         private readonly List<string> _skippedOptions = new();
 
-        void IDisposable.Dispose()
+        void ITypeDeserializer.End(ISerdeInfo info)
         {
             // Pop the command stack
             _deserializer._commandStack.RemoveAt(_deserializer._commandStack.Count - 1);
             _deserializer._checkingSkipped = false;
         }
+
+        IDeserializer ITypeDeserializer.ReadFieldStart(ISerdeInfo info, int index) => _deserializer;
+
+        void ITypeDeserializer.ReadFieldEnd(ISerdeInfo info, int index, IDeserializer deserializer) { }
+
+        int ITypeDeserializer.ReadEnum(ISerdeInfo typeInfo, int index, ISerdeInfo fieldInfo)
+            => throw new NotSupportedException();
 
         (int, string?) ITypeDeserializer.TryReadIndexWithName(ISerdeInfo serdeInfo) => (TryReadIndex(serdeInfo), null);
 

@@ -192,4 +192,119 @@ Options:
         [CommandParameter(0, "ordinal")]
         public required int Ordinal { get; init; }
     }
+
+    [Fact]
+    public void BoolWithInitializerOmittedUsesDefault()
+    {
+        string[] cmdLine = [ "abc" ];
+        var cmd = CmdLine.ParseRawWithHelp<InitializerCommand>(cmdLine).Unwrap();
+        Assert.Equal(new InitializerCommand
+        {
+            FlagOption = false,
+            Arg = "abc"
+        }, cmd);
+    }
+
+    [Fact]
+    public void BoolWithInitializerProvidedOverridesDefault()
+    {
+        string[] cmdLine = [ "-f", "abc" ];
+        var cmd = CmdLine.ParseRawWithHelp<InitializerCommand>(cmdLine).Unwrap();
+        Assert.Equal(new InitializerCommand
+        {
+            FlagOption = true,
+            Arg = "abc"
+        }, cmd);
+    }
+
+    [Fact]
+    public void BoolWithInitializerFlagInHelp()
+    {
+        var help = CmdLine.GetHelpText(SerdeInfoProvider.GetDeserializeInfo<InitializerCommand>());
+        var text = """
+usage: InitializerCommand [-f | --flag-option] <arg>
+
+Arguments:
+    <arg>
+
+Options:
+    -f, --flag-option
+
+""";
+        Assert.Equal(text.NormalizeLineEndings(), help.NormalizeLineEndings());
+    }
+
+    [GenerateDeserialize]
+    private sealed partial record InitializerCommand
+    {
+        [CommandOption("-f|--flag-option")]
+        public bool FlagOption { get; init; } = false;
+
+        [CommandParameter(0, "arg")]
+        public required string Arg { get; init; }
+    }
+
+    [Fact]
+    public void BoolWithoutInitializerIsRequired()
+    {
+        string[] cmdLine = [ "abc" ];
+        Assert.Throws<ArgumentSyntaxException>(
+            () => CmdLine.ParseRawWithHelp<RequiredBoolCommand>(cmdLine).Unwrap());
+    }
+
+    [Fact]
+    public void BoolWithoutInitializerProvided()
+    {
+        string[] cmdLine = [ "-f", "abc" ];
+        var cmd = CmdLine.ParseRawWithHelp<RequiredBoolCommand>(cmdLine).Unwrap();
+        Assert.Equal(new RequiredBoolCommand
+        {
+            FlagOption = true,
+            Arg = "abc"
+        }, cmd);
+    }
+
+    [GenerateDeserialize]
+    private sealed partial record RequiredBoolCommand
+    {
+        [CommandOption("-f|--flag-option")]
+        public bool FlagOption { get; init; }
+
+        [CommandParameter(0, "arg")]
+        public required string Arg { get; init; }
+    }
+
+    [Fact]
+    public void StringWithInitializerOmittedUsesDefault()
+    {
+        string[] cmdLine = [ "abc" ];
+        var cmd = CmdLine.ParseRawWithHelp<StringInitializerCommand>(cmdLine).Unwrap();
+        Assert.Equal(new StringInitializerCommand
+        {
+            Name = "default",
+            Arg = "abc"
+        }, cmd);
+    }
+
+    [Fact]
+    public void StringWithInitializerProvidedOverridesDefault()
+    {
+        string[] cmdLine = [ "-n", "custom", "abc" ];
+        var cmd = CmdLine.ParseRawWithHelp<StringInitializerCommand>(cmdLine).Unwrap();
+        Assert.Equal(new StringInitializerCommand
+        {
+            Name = "custom",
+            Arg = "abc"
+        }, cmd);
+    }
+
+    [GenerateDeserialize]
+    private sealed partial record StringInitializerCommand
+    {
+        [CommandOption("-n|--name")]
+        public string Name { get; init; } = "default";
+
+        [CommandParameter(0, "arg")]
+        public required string Arg { get; init; }
+    }
 }

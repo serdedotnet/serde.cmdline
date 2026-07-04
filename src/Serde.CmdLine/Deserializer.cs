@@ -36,6 +36,15 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
         return true;
     }
 
+    public bool TryReadNull()
+    {
+        // A field's value is only read when its corresponding argument is present, so there is
+        // always a value to read.
+        return false;
+    }
+
+    public int ReadEnum(ISerdeInfo info) => throw new NotSupportedException();
+
     public string ReadString()
     {
         if (_checkingSkipped)
