@@ -128,9 +128,12 @@ public static class CmdLine
                     {
                         continue;
                     }
-                    // Consider nullable boolean fields as flag options.
+                    // Consider boolean fields (nullable or with an initializer) as flag options.
 #pragma warning disable SerdeExperimentalFieldInfo
-                    var optionName = targetInfo.GetFieldInfo(fieldIndex).Name == "bool?"
+                    var fieldInfo = targetInfo.GetFieldInfo(fieldIndex);
+
+                    var optionName = fieldInfo.PrimitiveKind is PrimitiveKind.Bool
+                        || (fieldInfo.Kind == InfoKind.Nullable && fieldInfo.GetFieldInfo(0).PrimitiveKind is PrimitiveKind.Bool)
 #pragma warning restore SerdeExperimentalFieldInfo
                         ? null
                         : $"<{targetInfo.GetFieldStringName(fieldIndex)}>";
