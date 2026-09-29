@@ -112,7 +112,7 @@ public static class CmdLine
     public static string GetHelpText(ISerdeInfo rootInfo, ISerdeInfo targetInfo, bool includeHelp = false)
     {
         var args = new List<(string Name, string? Description)>();
-        var options = new List<(string[] Patterns, string? Name, string? Description)>();
+        var options = new List<(string[] Patterns, string? Name, string? Description, bool Required)>();
         string? commandsName = null;
         var commands = new List<(string Name, string? Summary, string? Description)>();
         for (int fieldIndex = 0; fieldIndex < targetInfo.FieldCount; fieldIndex++)
@@ -138,7 +138,7 @@ public static class CmdLine
                         ? null
                         : $"<{targetInfo.GetFieldStringName(fieldIndex)}>";
                     string? desc = GetDescription(namedArgs);
-                    options.Add((flagNames.Split('|'), optionName, desc));
+                    options.Add((flagNames.Split('|'), optionName, desc, IsRequired(attrs)));
                 }
                 else if (attr is { AttributeType: { Name: nameof(CommandParameterAttribute) },
                                ConstructorArguments: [ { Value: int paramIndex }, { Value: string paramName } ],
@@ -238,9 +238,11 @@ public static class CmdLine
             }
         }
 
-        if (includeHelp)
+        // Help is handled before any declared option is matched, so a command that declares its own
+        // -h or --help option is already describing the built-in one.
+        if (includeHelp && !options.Any(o => o.Patterns.Any(p => p is "-h" or "--help")))
         {
-            options.Add((new[] { "-h", "--help" }, null, "Show help information."));
+            options.Add((new[] { "-h", "--help" }, null, "Show help information.", false));
         }
 
         const string Indent = "    ";
@@ -271,7 +273,14 @@ Options:
 
         var optionsUsageShortString = options.Count > 0
             ? " " + string.Join(" ",
-                options.Select(o => $"[{string.Join(" | ", o.Patterns)}{o.Name?.Map(n => " " + n) ?? "" }]"))
+                options.Select(o =>
+                {
+                    var usage = $"{string.Join(" | ", o.Patterns)}{o.Name?.Map(n => " " + n) ?? "" }";
+                    // Required options aren't bracketed, but alternatives still need grouping.
+                    return o.Required
+                        ? o.Patterns.Length > 1 ? $"({usage})" : usage
+                        : $"[{usage}]";
+                }))
             : "";
 
         string topLevelDesc = "";
@@ -398,6 +407,18 @@ usage: {topLevelName}{optionsUsageShortString}{commandsName?.Map(n => $" <{n}>")
         foreach (var namedArg in namedArgs)
         {
             if (namedArg is { MemberName: "Hidden", TypedValue: { Value: true } })
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool IsRequired(IList<System.Reflection.CustomAttributeData> attrs)
+    {
+        foreach (var attr in attrs)
+        {
+            if (attr is { AttributeType: { Name: nameof(System.Runtime.CompilerServices.RequiredMemberAttribute) } })
             {
                 return true;
             }
