@@ -307,4 +307,70 @@ Options:
         [CommandParameter(0, "arg")]
         public required string Arg { get; init; }
     }
+
+    [Fact]
+    public void RequiredOptionsNotBracketedInUsage()
+    {
+        var help = CmdLine.GetHelpText(SerdeInfoProvider.GetDeserializeInfo<RequiredOptionCommand>());
+        var text = """
+usage: RequiredOptionCommand --name <name> (-o | --output <output>) [-v | --verbose]
+
+Options:
+    --name  <name>
+    -o, --output  <output>
+    -v, --verbose
+
+""";
+        Assert.Equal(text.NormalizeLineEndings(), help.NormalizeLineEndings());
+    }
+
+    [GenerateDeserialize]
+    private sealed partial record RequiredOptionCommand
+    {
+        [CommandOption("--name")]
+        public required string Name { get; init; }
+
+        [CommandOption("-o|--output")]
+        public required string Output { get; init; }
+
+        [CommandOption("-v|--verbose")]
+        public bool? Verbose { get; init; }
+    }
+
+    [Fact]
+    public void DeclaredHelpOptionNotDuplicated()
+    {
+        var help = CmdLine.GetHelpText(SerdeInfoProvider.GetDeserializeInfo<FileSizeCommand>(), includeHelp: true);
+        var text = """
+usage: FileSizeCommand [-p | --pattern <searchPattern>] [--hidden] [-h | --help] <searchPath>
+
+Arguments:
+    <searchPath>  Path to search. Defaults to current directory.
+
+Options:
+    -p, --pattern  <searchPattern>
+    --hidden
+    -h, --help
+
+""";
+        Assert.Equal(text.NormalizeLineEndings(), help.NormalizeLineEndings());
+    }
+
+    [Fact]
+    public void BuiltInHelpOptionAdded()
+    {
+        var help = CmdLine.GetHelpText(SerdeInfoProvider.GetDeserializeInfo<HiddenMembersCommand>(), includeHelp: true);
+        var text = """
+usage: HiddenMembersCommand [--visible] [-h | --help] <visibleArg>
+
+Arguments:
+    <visibleArg>  A visible argument.
+
+Options:
+    --visible
+    -h, --help  Show help information.
+
+""";
+        Assert.Equal(text.NormalizeLineEndings(), help.NormalizeLineEndings());
+    }
 }
