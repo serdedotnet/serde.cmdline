@@ -350,6 +350,9 @@ Options:
         Assert.Throws<ArgumentSyntaxException>(() => CmdLine.ParseRaw<OptionOptionalityCommand>([]));
         Assert.Equal(new OptionOptionalityCommand { Count = 1 },
             CmdLine.ParseRaw<OptionOptionalityCommand>(["--count", "1"]));
+        Assert.Equal(new OptionOptionalityCommand { Count = 1, Name = "custom", Default = "override" },
+            CmdLine.ParseRaw<OptionOptionalityCommand>(
+                ["--count", "1", "--name", "custom", "--default", "override"]));
     }
 
     [GenerateDeserialize]
