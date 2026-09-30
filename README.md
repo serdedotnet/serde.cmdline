@@ -20,11 +20,11 @@ internal sealed partial record FileSizeCommand
 
 var console = AnsiConsole.Out;
 var ok = CmdLine.TryParse<FileSizeCommand>(args, console, out var cmd, out var helpShown);
-if (ok)
+if (ok && !helpShown)
 {
    // handle cmd
 }
-return ok || helpShown ? 0 : 1;
+return ok ? 0 : 1;
 ```
 
 ## Hidden commands and options
