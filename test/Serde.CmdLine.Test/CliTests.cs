@@ -48,7 +48,8 @@ Options:
     {
         string[] args = [ "-h", "--bad-option" ];
         var testConsole = new TestConsole();
-        Assert.False(CmdLine.TryParse<FileSizeCommand>(args, testConsole, out _));
+        Assert.False(CmdLine.TryParse<FileSizeCommand>(args, testConsole, out _, out var helpShown));
+        Assert.False(helpShown);
         var text = """
 error: Unexpected argument: '--bad-option'
 usage: FileSizeCommand [-p | --pattern <searchPattern>] [--hidden] [-h | --help]
@@ -75,6 +76,49 @@ Options:
         var ex = Assert.Throws<ArgumentSyntaxException>(() => CmdLine.ParseRaw<FileSizeCommand>(args));
         Assert.False(CmdLine.TryParse<FileSizeCommand>(args, testConsole, out _));
         Assert.Contains(ex.Message.NormalizeLineEndings(), testConsole.Output);
+    }
+
+    [Fact]
+    public void TryParseSuccessDoesNotShowHelp()
+    {
+        var testConsole = new TestConsole();
+        Assert.True(CmdLine.TryParse<FileSizeCommand>(["-p", "*.txt"], testConsole, out var cmd, out var helpShown));
+        Assert.False(helpShown);
+        Assert.Equal(new FileSizeCommand { SearchPattern = "*.txt" }, cmd);
+        Assert.Equal("", testConsole.Output);
+    }
+
+    [Theory]
+    [InlineData("-h")]
+    [InlineData("--help")]
+    public void TryParseHelpReportsHelpShown(string helpOption)
+    {
+        var testConsole = new TestConsole();
+        Assert.False(CmdLine.TryParse<HiddenMembersCommand>([helpOption], testConsole, out var cmd, out var helpShown));
+        Assert.True(helpShown);
+        Assert.Null(cmd);
+        Assert.Contains("usage: HiddenMembersCommand", testConsole.Output);
+        Assert.DoesNotContain("error: ", testConsole.Output);
+    }
+
+    [Fact]
+    public void TryParseDeclaredHelpReportsHelpShown()
+    {
+        var testConsole = new TestConsole();
+        Assert.False(CmdLine.TryParse<FileSizeCommand>(["--help"], testConsole, out var cmd, out var helpShown));
+        Assert.True(helpShown);
+        Assert.Null(cmd);
+        Assert.Contains("usage: FileSizeCommand", testConsole.Output);
+    }
+
+    [Fact]
+    public void TryParseErrorDoesNotShowHelp()
+    {
+        var testConsole = new TestConsole();
+        Assert.False(CmdLine.TryParse<FileSizeCommand>(["--bad-option"], testConsole, out var cmd, out var helpShown));
+        Assert.False(helpShown);
+        Assert.Null(cmd);
+        Assert.Contains("error: Unexpected argument: '--bad-option'", testConsole.Output);
     }
 
     [GenerateDeserialize]
