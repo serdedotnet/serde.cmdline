@@ -69,8 +69,17 @@ public static class CmdLine
     /// Try to parse the command line arguments directly into a command object.
     /// If an error occurs, the error message will be printed to the console, followed by the generated help text
     /// for the top-level command.
+    /// Returns true if a command was parsed or help was displayed; cmd is default when help is displayed.
     /// </summary>
     public static bool TryParse<T>(string[] args, IAnsiConsole console, out T cmd)
+        where T : IDeserializeProvider<T> => TryParse(args, console, out cmd, out _);
+
+    /// <summary>
+    /// Try to parse the command line arguments directly into a command object.
+    /// Returns true if a command was parsed or help was displayed, and false on a parsing error.
+    /// When helpShown is true, cmd is default instead of a parsed command.
+    /// </summary>
+    public static bool TryParse<T>(string[] args, IAnsiConsole console, out T cmd, out bool helpShown)
         where T : IDeserializeProvider<T>
     {
         try
@@ -80,13 +89,15 @@ public static class CmdLine
             {
                 case ParsedArgsOrHelpInfos<T>.Parsed(var value):
                     cmd = value;
+                    helpShown = false;
                     return true;
                 case ParsedArgsOrHelpInfos<T>.Help(var helpInfos):
                     var rootInfo = SerdeInfoProvider.GetDeserializeInfo<T>();
                     var lastInfo = helpInfos.Last();
                     console.WriteLine(CmdLine.GetHelpText(rootInfo, lastInfo, includeHelp: true));
                     cmd = default!;
-                    return false;
+                    helpShown = true;
+                    return true;
                 default:
                     throw new InvalidOperationException();
             }
@@ -96,6 +107,7 @@ public static class CmdLine
             console.WriteLine("error: " + ex.Message);
             console.WriteLine(GetHelpText<T>());
             cmd = default!;
+            helpShown = false;
             return false;
         }
     }
