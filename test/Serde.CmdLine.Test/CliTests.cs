@@ -250,6 +250,8 @@ Options:
         string[] cmdLine = [ "abc" ];
         Assert.Throws<ArgumentSyntaxException>(
             () => CmdLine.ParseRawWithHelp<RequiredBoolCommand>(cmdLine).Unwrap());
+        var help = CmdLine.GetHelpText(SerdeInfoProvider.GetDeserializeInfo<RequiredBoolCommand>());
+        Assert.Contains("usage: RequiredBoolCommand (-f | --flag-option) <arg>", help);
     }
 
     [Fact]
@@ -335,6 +337,32 @@ Options:
 
         [CommandOption("-v|--verbose")]
         public bool? Verbose { get; init; }
+    }
+
+    [Fact]
+    public void OptionOptionalityMatchesSerde()
+    {
+        var help = CmdLine.GetHelpText(SerdeInfoProvider.GetDeserializeInfo<OptionOptionalityCommand>());
+        Assert.Contains(
+            "usage: OptionOptionalityCommand --count <count> [--name <name>] [--default <default>]",
+            help);
+
+        Assert.Throws<ArgumentSyntaxException>(() => CmdLine.ParseRaw<OptionOptionalityCommand>([]));
+        Assert.Equal(new OptionOptionalityCommand { Count = 1 },
+            CmdLine.ParseRaw<OptionOptionalityCommand>(["--count", "1"]));
+    }
+
+    [GenerateDeserialize]
+    private sealed partial record OptionOptionalityCommand
+    {
+        [CommandOption("--count")]
+        public int Count { get; init; }
+
+        [CommandOption("--name")]
+        public string? Name { get; init; }
+
+        [CommandOption("--default")]
+        public string Default { get; init; } = "default";
     }
 
     [Fact]

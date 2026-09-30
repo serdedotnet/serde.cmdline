@@ -138,7 +138,7 @@ public static class CmdLine
                         ? null
                         : $"<{targetInfo.GetFieldStringName(fieldIndex)}>";
                     string? desc = GetDescription(namedArgs);
-                    options.Add((flagNames.Split('|'), optionName, desc, IsRequired(attrs)));
+                    options.Add((flagNames.Split('|'), optionName, desc, !targetInfo.IsFieldOptional(fieldIndex)));
                 }
                 else if (attr is { AttributeType: { Name: nameof(CommandParameterAttribute) },
                                ConstructorArguments: [ { Value: int paramIndex }, { Value: string paramName } ],
@@ -407,18 +407,6 @@ usage: {topLevelName}{optionsUsageShortString}{commandsName?.Map(n => $" <{n}>")
         foreach (var namedArg in namedArgs)
         {
             if (namedArg is { MemberName: "Hidden", TypedValue: { Value: true } })
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static bool IsRequired(IList<System.Reflection.CustomAttributeData> attrs)
-    {
-        foreach (var attr in attrs)
-        {
-            if (attr is { AttributeType: { Name: nameof(System.Runtime.CompilerServices.RequiredMemberAttribute) } })
             {
                 return true;
             }
