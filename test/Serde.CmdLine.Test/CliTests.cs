@@ -94,7 +94,7 @@ Options:
     public void TryParseHelpReportsHelpShown(string helpOption)
     {
         var testConsole = new TestConsole();
-        Assert.False(CmdLine.TryParse<HiddenMembersCommand>([helpOption], testConsole, out var cmd, out var helpShown));
+        Assert.True(CmdLine.TryParse<HiddenMembersCommand>([helpOption], testConsole, out var cmd, out var helpShown));
         Assert.True(helpShown);
         Assert.Null(cmd);
         Assert.Contains("usage: HiddenMembersCommand", testConsole.Output);
@@ -102,10 +102,19 @@ Options:
     }
 
     [Fact]
+    public void TryParseHelpWithoutHelpShownReportsSuccess()
+    {
+        var testConsole = new TestConsole();
+        Assert.True(CmdLine.TryParse<HiddenMembersCommand>(["--help"], testConsole, out var cmd));
+        Assert.Null(cmd);
+        Assert.Contains("usage: HiddenMembersCommand", testConsole.Output);
+    }
+
+    [Fact]
     public void TryParseDeclaredHelpReportsHelpShown()
     {
         var testConsole = new TestConsole();
-        Assert.False(CmdLine.TryParse<FileSizeCommand>(["--help"], testConsole, out var cmd, out var helpShown));
+        Assert.True(CmdLine.TryParse<FileSizeCommand>(["--help"], testConsole, out var cmd, out var helpShown));
         Assert.True(helpShown);
         Assert.Null(cmd);
         Assert.Contains("usage: FileSizeCommand", testConsole.Output);

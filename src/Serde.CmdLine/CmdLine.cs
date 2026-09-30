@@ -69,13 +69,15 @@ public static class CmdLine
     /// Try to parse the command line arguments directly into a command object.
     /// If an error occurs, the error message will be printed to the console, followed by the generated help text
     /// for the top-level command.
+    /// Returns true if a command was parsed or help was displayed; cmd is default when help is displayed.
     /// </summary>
     public static bool TryParse<T>(string[] args, IAnsiConsole console, out T cmd)
         where T : IDeserializeProvider<T> => TryParse(args, console, out cmd, out _);
 
     /// <summary>
     /// Try to parse the command line arguments directly into a command object.
-    /// Returns false when help is shown or parsing fails; helpShown distinguishes these cases.
+    /// Returns true if a command was parsed or help was displayed, and false on a parsing error.
+    /// When helpShown is true, cmd is default instead of a parsed command.
     /// </summary>
     public static bool TryParse<T>(string[] args, IAnsiConsole console, out T cmd, out bool helpShown)
         where T : IDeserializeProvider<T>
@@ -95,7 +97,7 @@ public static class CmdLine
                     console.WriteLine(CmdLine.GetHelpText(rootInfo, lastInfo, includeHelp: true));
                     cmd = default!;
                     helpShown = true;
-                    return false;
+                    return true;
                 default:
                     throw new InvalidOperationException();
             }
