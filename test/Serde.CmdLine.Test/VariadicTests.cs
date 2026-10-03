@@ -17,10 +17,17 @@ public sealed partial class VariadicTests
     }
 
     [Fact]
-    public void NoValuesIsNull()
+    public void NoValuesUsesInitializer()
     {
         string[] testArgs = [ "dest" ];
         var cmd = CmdLine.ParseRaw<CopyCommand>(testArgs);
+        Assert.Empty(cmd.Files);
+    }
+
+    [Fact]
+    public void NoValuesIsNull()
+    {
+        var cmd = CmdLine.ParseRaw<NullableFilesCommand>([]);
         Assert.Null(cmd.Files);
     }
 
@@ -154,6 +161,13 @@ Arguments:
         public required string Dest { get; init; }
 
         [CommandParameter(1, "files")]
+        public List<string> Files { get; init; } = [];
+    }
+
+    [GenerateDeserialize]
+    private sealed partial record NullableFilesCommand
+    {
+        [CommandParameter(0, "files")]
         public List<string>? Files { get; init; }
     }
 
