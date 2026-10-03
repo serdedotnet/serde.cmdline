@@ -12,7 +12,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Serde" />
+    <!-- Users need Serde's source generator for [GenerateDeserialize], so let its analyzers flow
+         to them. The default PrivateAssets excludes analyzers, which NuGet doesn't yet enforce but
+         will with RestoreEnableAnalyzerAssets (NuGet/Home#6279). -->
+    <PackageReference Include="Serde" PrivateAssets="none" />
     <PackageReference Include="Spectre.Console" />
 
     <PackageReference Include="StaticCs" />
