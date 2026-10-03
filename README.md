@@ -158,7 +158,7 @@ This example is kept in sync with `test/Serde.CmdLine.Test/ReadmeExampleTests.cs
 - **`--`** ends option parsing. Every argument after it is a parameter, even if it starts with `-`.
 - **`-h` and `--help`** show help for the command they appear in.
 
-Options can't be collections yet, so `--include a --include b` isn't supported (#47).
+Options can't be collections yet, so `--include a --include b` isn't supported ([#47](https://github.com/serdedotnet/serde.cmdline/issues/47)).
 
 ## Hidden commands and options
 
