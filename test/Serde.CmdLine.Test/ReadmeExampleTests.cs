@@ -13,7 +13,8 @@ public sealed partial class ReadmeExampleTests
     public void Parse()
     {
         string[] args = [ "install", "-s", "nuget.org", "a", "--dry-run", "b", "-v" ];
-        Assert.True(CmdLine.TryParse<Pkg>(args, new TestConsole(), out var pkg));
+        var result = CmdLine.Parse<Pkg>(args, new TestConsole());
+        var pkg = Assert.IsType<CmdLine.ParseResult<Pkg>.Parsed>(result).Command;
         Assert.True(pkg.Verbose);
         var install = Assert.IsType<PkgCommand.Install>(pkg.Command);
         Assert.Equal("nuget.org", install.Source);
@@ -66,7 +67,7 @@ Options:
     private static string GetHelpOutput(string[] args)
     {
         var console = new TestConsole().Width(120);
-        Assert.False(CmdLine.TryParse<Pkg>(args, console, out _));
+        Assert.IsType<CmdLine.ParseResult<Pkg>.HelpShown>(CmdLine.Parse<Pkg>(args, console));
         return console.Output;
     }
 

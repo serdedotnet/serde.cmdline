@@ -100,32 +100,52 @@ public static class CmdLine
     }
 
     /// <summary>
+    /// The result of <see cref="Parse{T}(string[], IAnsiConsole)"/>.
+    /// </summary>
+    [Closed]
+    public abstract record ParseResult<T>
+    {
+        private ParseResult() { }
+
+        /// <summary>
+        /// The arguments were parsed and no help was requested.
+        /// </summary>
+        /// <param name="Command">The parsed command.</param>
+        public sealed record Parsed(T Command) : ParseResult<T>;
+
+        /// <summary>
+        /// <c>-h</c> or <c>--help</c> was given, and the help has been printed.
+        /// </summary>
+        public sealed record HelpShown : ParseResult<T>;
+
+        /// <summary>
+        /// The arguments were invalid. The error and the top-level help have been printed.
+        /// </summary>
+        /// <param name="Message">The error message.</param>
+        public sealed record Error(string Message) : ParseResult<T>;
+    }
+
+    /// <summary>
     /// Parse the command-line arguments into a command, printing help or errors to
     /// <paramref name="console"/>.
     /// </summary>
     /// <remarks>
     /// If help was requested, the help for the command it applied to is printed. If the arguments
-    /// are invalid, the error is printed, followed by the help for the top-level command. Both
-    /// cases return false.
+    /// are invalid, the error is printed, followed by the help for the top-level command.
     /// </remarks>
-    /// <returns>True if the arguments were parsed into <paramref name="cmd"/>.</returns>
-    public static bool TryParse<T>(string[] args, IAnsiConsole console, out T cmd)
+    public static ParseResult<T> Parse<T>(string[] args, IAnsiConsole console)
         where T : IDeserializeProvider<T>
     {
         try
         {
-            var result = ParseRawWithHelp<T>(args);
-            switch (result)
+            switch (ParseRawWithHelp<T>(args))
             {
                 case ParsedArgsOrHelpInfos<T>.Parsed(var value):
-                    cmd = value;
-                    return true;
+                    return new ParseResult<T>.Parsed(value);
                 case ParsedArgsOrHelpInfos<T>.Help(var helpInfos):
                     var rootInfo = SerdeInfoProvider.GetDeserializeInfo<T>();
-                    var lastInfo = helpInfos.Last();
-                    console.WriteLine(CmdLine.GetHelpText(rootInfo, lastInfo, includeHelp: true));
-                    cmd = default!;
-                    return false;
+                    console.WriteLine(GetHelpText(rootInfo, helpInfos.Last(), includeHelp: true));
+                    return new ParseResult<T>.HelpShown();
                 default:
                     throw new InvalidOperationException();
             }
@@ -134,9 +154,29 @@ public static class CmdLine
         {
             console.WriteLine("error: " + ex.Message);
             console.WriteLine(GetHelpText<T>());
-            cmd = default!;
-            return false;
+            return new ParseResult<T>.Error(ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Parse the command-line arguments into a command, printing help or errors to
+    /// <paramref name="console"/>.
+    /// </summary>
+    /// <remarks>
+    /// This returns false both when help was requested and when the arguments are invalid. Use
+    /// <see cref="Parse{T}(string[], IAnsiConsole)"/> to tell the two apart.
+    /// </remarks>
+    /// <returns>True if the arguments were parsed into <paramref name="cmd"/>.</returns>
+    public static bool TryParse<T>(string[] args, IAnsiConsole console, out T cmd)
+        where T : IDeserializeProvider<T>
+    {
+        if (Parse<T>(args, console) is ParseResult<T>.Parsed(var value))
+        {
+            cmd = value;
+            return true;
+        }
+        cmd = default!;
+        return false;
     }
 
     /// <summary>

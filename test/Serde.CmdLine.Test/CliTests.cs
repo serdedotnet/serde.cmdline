@@ -77,6 +77,45 @@ Options:
         Assert.Contains(ex.Message.NormalizeLineEndings(), testConsole.Output);
     }
 
+    [Fact]
+    public void ParseReturnsParsed()
+    {
+        var testConsole = new TestConsole();
+        var result = CmdLine.Parse<FileSizeCommand>([ "-p", "*.txt" ], testConsole);
+        var parsed = Assert.IsType<CmdLine.ParseResult<FileSizeCommand>.Parsed>(result);
+        Assert.Equal(new FileSizeCommand { SearchPattern = "*.txt" }, parsed.Command);
+        Assert.Equal("", testConsole.Output);
+    }
+
+    [Theory]
+    [InlineData("-h")]
+    [InlineData("--help")]
+    public void ParseReturnsHelpShown(string helpFlag)
+    {
+        var testConsole = new TestConsole();
+        var result = CmdLine.Parse<FileSizeCommand>([ helpFlag ], testConsole);
+        Assert.IsType<CmdLine.ParseResult<FileSizeCommand>.HelpShown>(result);
+        Assert.StartsWith("usage: FileSizeCommand", testConsole.Output);
+    }
+
+    [Fact]
+    public void ParseReturnsError()
+    {
+        var testConsole = new TestConsole();
+        var result = CmdLine.Parse<FileSizeCommand>([ "--bad-option" ], testConsole);
+        var error = Assert.IsType<CmdLine.ParseResult<FileSizeCommand>.Error>(result);
+        Assert.Equal("Unexpected argument: '--bad-option'", error.Message);
+        Assert.StartsWith("error: Unexpected argument: '--bad-option'", testConsole.Output);
+    }
+
+    [Fact]
+    public void TryParseReturnsFalseForHelp()
+    {
+        var testConsole = new TestConsole();
+        Assert.False(CmdLine.TryParse<FileSizeCommand>([ "--help" ], testConsole, out _));
+        Assert.StartsWith("usage: FileSizeCommand", testConsole.Output);
+    }
+
     [GenerateDeserialize]
     internal sealed partial record FileSizeCommand
     {
