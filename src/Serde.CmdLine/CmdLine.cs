@@ -6,20 +6,50 @@ using StaticCs;
 
 namespace Serde.CmdLine;
 
+/// <summary>
+/// Parses command-line arguments into a command type and generates help text for it.
+/// </summary>
+/// <remarks>
+/// A command type is a <c>[GenerateDeserialize]</c> type whose members are marked with
+/// <see cref="CommandOptionAttribute"/>, <see cref="CommandParameterAttribute"/>,
+/// <see cref="CommandAttribute"/> or <see cref="CommandGroupAttribute"/>.
+/// </remarks>
 public static class CmdLine
 {
+    /// <summary>
+    /// The result of <see cref="ParseRawWithHelp{T}(string[])"/>: either the parsed command, or
+    /// a request for help.
+    /// </summary>
     [Closed]
     public abstract record ParsedArgsOrHelpInfos<TArgs>
     {
         private ParsedArgsOrHelpInfos() { }
+
+        /// <summary>
+        /// The arguments were parsed and no help was requested.
+        /// </summary>
+        /// <param name="Args">The parsed command.</param>
         public sealed record Parsed(TArgs Args) : ParsedArgsOrHelpInfos<TArgs>;
+
+        /// <summary>
+        /// <c>-h</c> or <c>--help</c> was given.
+        /// </summary>
+        /// <param name="HelpInfos">
+        /// The command each help flag applied to, in the order the flags appeared. Pass one to
+        /// <see cref="GetHelpText(ISerdeInfo, ISerdeInfo, bool)"/> to print its help.
+        /// </param>
         public sealed record Help(IReadOnlyList<ISerdeInfo> HelpInfos) : ParsedArgsOrHelpInfos<TArgs>;
     }
 
     /// <summary>
-    /// Try to parse the command line arguments directly into a command object.
-    /// No errors are handled, so exceptions will be thrown if the arguments are invalid.
+    /// Parse the command-line arguments into a command, handling <c>-h</c> and <c>--help</c>.
+    /// Nothing is printed.
     /// </summary>
+    /// <remarks>
+    /// If help was requested, errors such as a missing required option are ignored and
+    /// <see cref="ParsedArgsOrHelpInfos{TArgs}.Help"/> is returned.
+    /// </remarks>
+    /// <exception cref="ArgumentSyntaxException">The arguments don't match the command.</exception>
     public static ParsedArgsOrHelpInfos<T> ParseRawWithHelp<T>(string[] args)
         where T : IDeserializeProvider<T>
     {
@@ -50,9 +80,10 @@ public static class CmdLine
     }
 
     /// <summary>
-    /// Try to parse the command line arguments directly into a command object.
-    /// No errors are handled, so exceptions will be thrown if the arguments are invalid.
+    /// Parse the command-line arguments into a command. Help flags aren't handled, so <c>-h</c>
+    /// and <c>--help</c> are treated like any other argument. Nothing is printed.
     /// </summary>
+    /// <exception cref="ArgumentSyntaxException">The arguments don't match the command.</exception>
     public static T ParseRaw<T>(string[] args) where T : IDeserializeProvider<T>
     {
         try
@@ -69,10 +100,15 @@ public static class CmdLine
     }
 
     /// <summary>
-    /// Try to parse the command line arguments directly into a command object.
-    /// If an error occurs, the error message will be printed to the console, followed by the generated help text
-    /// for the top-level command.
+    /// Parse the command-line arguments into a command, printing help or errors to
+    /// <paramref name="console"/>.
     /// </summary>
+    /// <remarks>
+    /// If help was requested, the help for the command it applied to is printed. If the arguments
+    /// are invalid, the error is printed, followed by the help for the top-level command. Both
+    /// cases return false.
+    /// </remarks>
+    /// <returns>True if the arguments were parsed into <paramref name="cmd"/>.</returns>
     public static bool TryParse<T>(string[] args, IAnsiConsole console, out T cmd)
         where T : IDeserializeProvider<T>
     {
@@ -103,6 +139,12 @@ public static class CmdLine
         }
     }
 
+    /// <summary>
+    /// Generate help text for the command type <typeparamref name="T"/>.
+    /// </summary>
+    /// <param name="includeHelp">
+    /// List <c>-h, --help</c> among the options, unless the command declares one of them itself.
+    /// </param>
     public static string GetHelpText<T>(bool includeHelp = false)
         where T : IDeserializeProvider<T>
     {
@@ -110,8 +152,24 @@ public static class CmdLine
         return GetHelpText(rootInfo, includeHelp);
     }
 
+    /// <summary>
+    /// Generate help text for the command described by <paramref name="rootInfo"/>.
+    /// </summary>
+    /// <param name="rootInfo">The top-level command.</param>
+    /// <param name="includeHelp">
+    /// List <c>-h, --help</c> among the options, unless the command declares one of them itself.
+    /// </param>
     public static string GetHelpText(ISerdeInfo rootInfo, bool includeHelp = false) => GetHelpText(rootInfo, rootInfo, includeHelp);
 
+    /// <summary>
+    /// Generate help text for a subcommand. The usage line shows the full command path from
+    /// <paramref name="rootInfo"/> down to <paramref name="targetInfo"/>.
+    /// </summary>
+    /// <param name="rootInfo">The top-level command.</param>
+    /// <param name="targetInfo">The command to describe: <paramref name="rootInfo"/> or one of its subcommands.</param>
+    /// <param name="includeHelp">
+    /// List <c>-h, --help</c> among the options, unless the command declares one of them itself.
+    /// </param>
     public static string GetHelpText(ISerdeInfo rootInfo, ISerdeInfo targetInfo, bool includeHelp = false)
     {
         var args = new List<(string Name, string? Description)>();
@@ -338,7 +396,7 @@ usage: {topLevelName}{optionsUsageShortString}{commandsName?.Map(n => $" <{n}>")
 
 """;
 
-        /// Get the chain of ISerdeInfo objects from the root to the target ISerdeInfo.
+        // Get the chain of ISerdeInfo objects from the root to the target ISerdeInfo.
         static IEnumerable<ISerdeInfo> GetParentInfos(ISerdeInfo rootInfo, ISerdeInfo targetInfo)
         {
             var parentInfos = new List<ISerdeInfo> { rootInfo };
@@ -398,6 +456,10 @@ usage: {topLevelName}{optionsUsageShortString}{commandsName?.Map(n => $" <{n}>")
         }
     }
 
+    /// <summary>
+    /// Get the name of a command: the name from its <see cref="CommandAttribute"/>, or the type
+    /// name if it has none.
+    /// </summary>
     public static string GetCommandName(ISerdeInfo serdeInfo)
     {
         var name = serdeInfo.Name;

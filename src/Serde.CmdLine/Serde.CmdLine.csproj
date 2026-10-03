@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
     <IsTrimmable>true</IsTrimmable>
     <IsAotCompatible>true</IsAotCompatible>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
 
     <PackageVersion>0.3.0</PackageVersion>
   </PropertyGroup>
