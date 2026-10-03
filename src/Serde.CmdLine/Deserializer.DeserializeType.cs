@@ -9,29 +9,20 @@ namespace Serde.CmdLine;
 internal sealed partial class Deserializer
 {
     private sealed class DeserializeType(
-        Deserializer _deserializer,
+        Deserializer deserializer,
         Command _command
-    ) : ITypeDeserializer
+    ) : TypeDeserializerBase(deserializer)
     {
         private readonly List<string> _skippedOptions = new();
 
-        void ITypeDeserializer.End(ISerdeInfo info)
+        public override void End(ISerdeInfo info)
         {
             // Pop the command stack
             _deserializer._commandStack.RemoveAt(_deserializer._commandStack.Count - 1);
             _deserializer._checkingSkipped = false;
         }
 
-        IDeserializer ITypeDeserializer.ReadFieldStart(ISerdeInfo info, int index) => _deserializer;
-
-        void ITypeDeserializer.ReadFieldEnd(ISerdeInfo info, int index, IDeserializer deserializer) { }
-
-        int ITypeDeserializer.ReadEnum(ISerdeInfo typeInfo, int index, ISerdeInfo fieldInfo)
-            => throw new NotSupportedException();
-
-        (int, string?) ITypeDeserializer.TryReadIndexWithName(ISerdeInfo serdeInfo) => (TryReadIndex(serdeInfo), null);
-
-        private int TryReadIndex(ISerdeInfo serdeInfo)
+        public override int TryReadIndex(ISerdeInfo serdeInfo)
         {
             if (_deserializer._checkingSkipped)
             {
@@ -54,14 +45,12 @@ internal sealed partial class Deserializer
                     return CheckSkippedOptions();
                 }
 
-                var arg = args[argIndex];
-                if (_deserializer._handleHelp && arg is "-h" or "--help")
+                if (_deserializer.TryConsumeSpecialArg(serdeInfo))
                 {
-                    argIndex++;
-                    _deserializer._helpInfos.Add(serdeInfo);
                     continue;
                 }
 
+                var arg = args[argIndex];
                 var (fieldIndex, fieldKind) = CheckFields(arg);
                 if (fieldIndex >= 0)
                 {
@@ -79,8 +68,11 @@ internal sealed partial class Deserializer
                     return fieldIndex;
                 }
 
-                // No match, so check parent options
-                if (arg.StartsWith('-') && IsParentOption(args, ref argIndex))
+                // No match, so check parent options. We can't parse the value yet because the
+                // field belongs to the parent type, so record it for the parent to read later.
+                // N.B. The top of the stack is the current command
+                if (_deserializer.IsOption(arg)
+                    && _deserializer.TrySkipOption(_deserializer._commandStack.Count - 2, _skippedOptions))
                 {
                     continue;
                 }
@@ -88,44 +80,6 @@ internal sealed partial class Deserializer
                 // Unrecognized argument
                 throw new ArgumentSyntaxException($"Unexpected argument: '{arg}'");
             }
-        }
-
-        /// <summary>
-        /// Given a list of args and an arg index, check to see if the current arg matches any
-        /// options from parent commands.  If a match is found, advance the arg index appropriately
-        /// and record the skipped option.
-        /// </summary>
-        private bool IsParentOption(ReadOnlySpan<string> args, ref int argIndex)
-        {
-            var arg = args[argIndex];
-            // It's an option we don't recognize, so we will check the parent deserializer.
-            // We need to immediately check if it's valid because we need to know how many
-            // args to skip. However, the actual value parsing needs to be done later because
-            // the parent field is part of the parent type.
-            // N.B. The top of the stack is the current command
-            for (int ci = _deserializer._commandStack.Count - 2; ci >= 0; ci--)
-            {
-                var parentCmd = _deserializer._commandStack[ci];
-                foreach (var option in parentCmd.Options)
-                {
-                    foreach (var name in option.FlagNames)
-                    {
-                        if (name == arg)
-                        {
-                            _skippedOptions.Add(arg);
-                            argIndex++;
-                            // If this is not a bool flag, we need to skip the next arg as well
-                            if (option.HasArg)
-                            {
-                                _skippedOptions.Add(args[argIndex]);
-                                argIndex++;
-                            }
-                            return true;
-                        }
-                    }
-                }
-            }
-            return false;
         }
 
         private int CheckSkippedOptions()
@@ -145,11 +99,6 @@ internal sealed partial class Deserializer
             _deserializer._skippedOptions.AddRange(_skippedOptions);
             _skippedOptions.Clear();
             return ITypeDeserializer.EndOfType;
-        }
-
-        int ITypeDeserializer.TryReadIndex(ISerdeInfo info)
-        {
-            return TryReadIndex(info);
         }
 
         /// <summary>
@@ -173,7 +122,13 @@ internal sealed partial class Deserializer
         private (int fieldIndex, FieldKind fieldKind) CheckFields(string arg)
         {
             var cmd = _command;
-            if (arg.StartsWith('-'))
+            if (_deserializer._endOfOptions)
+            {
+                // After "--", every arg is a parameter
+                return CheckParameters(cmd);
+            }
+
+            if (_deserializer.IsOption(arg))
             {
                 var fieldIndex = CheckOptions(cmd, arg)?.FieldIndex ?? -1;
                 return (fieldIndex, fieldIndex >= 0 ? FieldKind.Option : FieldKind.None);
@@ -201,7 +156,11 @@ internal sealed partial class Deserializer
                 // No match, so we can continue.
             }
 
-            // Check for parameter matches
+            return CheckParameters(cmd);
+        }
+
+        private (int fieldIndex, FieldKind fieldKind) CheckParameters(Command cmd)
+        {
             foreach (var param in cmd.Parameters)
             {
                 // Parameters are positional, so we check the current param index
@@ -237,6 +196,12 @@ internal sealed partial class Deserializer
                         {
                             // Unwrap nullable if present
                             fieldInfo = fieldInfo.GetFieldInfo(0);
+                        }
+                        if (fieldInfo.Kind == InfoKind.List)
+                        {
+                            throw new InvalidOperationException(
+                                $"Option '{flagNames}' is a collection. Only parameters can be collections."
+                            );
                         }
                         var hasArg = fieldInfo.Name == "bool" ? false : true;
 #pragma warning restore SerdeExperimentalFieldInfo // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
@@ -304,64 +269,12 @@ internal sealed partial class Deserializer
                 }
             }
             return new(
+                serdeInfo,
                 options.ToImmutable(),
                 subCmdNames.ToImmutable(),
                 cmdGroups.ToImmutable(),
                 parameters.ToImmutable()
             );
         }
-
-
-        int? ITypeDeserializer.SizeOpt => null;
-
-        T ITypeDeserializer.ReadValue<T>(ISerdeInfo info, int index, IDeserialize<T> deserialize) => deserialize.Deserialize(_deserializer);
-
-        bool ITypeDeserializer.ReadBool(ISerdeInfo info, int index) => _deserializer.ReadBool();
-
-        byte ITypeDeserializer.ReadU8(ISerdeInfo info, int index) => _deserializer.ReadU8();
-
-        char ITypeDeserializer.ReadChar(ISerdeInfo info, int index) => _deserializer.ReadChar();
-
-        decimal ITypeDeserializer.ReadDecimal(ISerdeInfo info, int index) => _deserializer.ReadDecimal();
-
-        double ITypeDeserializer.ReadF64(ISerdeInfo info, int index) => _deserializer.ReadF64();
-
-        float ITypeDeserializer.ReadF32(ISerdeInfo info, int index) => _deserializer.ReadF32();
-
-        short ITypeDeserializer.ReadI16(ISerdeInfo info, int index) => _deserializer.ReadI16();
-
-        int ITypeDeserializer.ReadI32(ISerdeInfo info, int index) => _deserializer.ReadI32();
-
-        long ITypeDeserializer.ReadI64(ISerdeInfo info, int index) => _deserializer.ReadI64();
-
-        sbyte ITypeDeserializer.ReadI8(ISerdeInfo info, int index) => _deserializer.ReadI8();
-
-        string ITypeDeserializer.ReadString(ISerdeInfo info, int index)
-        {
-            return _deserializer.ReadString();
-        }
-
-        ushort ITypeDeserializer.ReadU16(ISerdeInfo info, int index) => _deserializer.ReadU16();
-
-        uint ITypeDeserializer.ReadU32(ISerdeInfo info, int index) => _deserializer.ReadU32();
-
-        ulong ITypeDeserializer.ReadU64(ISerdeInfo info, int index) => _deserializer.ReadU64();
-
-        void ITypeDeserializer.SkipValue(ISerdeInfo info, int index) => _deserializer._argIndex++;
-
-        DateTime ITypeDeserializer.ReadDateTime(ISerdeInfo info, int index)
-            => _deserializer.ReadDateTime();
-
-        DateTimeOffset ITypeDeserializer.ReadDateTimeOffset(ISerdeInfo info, int index)
-            => _deserializer.ReadDateTimeOffset();
-
-        Int128 ITypeDeserializer.ReadI128(ISerdeInfo info, int index)
-            => _deserializer.ReadI128();
-
-        UInt128 ITypeDeserializer.ReadU128(ISerdeInfo info, int index)
-            => _deserializer.ReadU128();
-
-        void ITypeDeserializer.ReadBytes(ISerdeInfo info, int index, IBufferWriter<byte> writer)
-            => _deserializer.ReadBytes(writer);
     }
 }

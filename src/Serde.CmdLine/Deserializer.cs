@@ -20,14 +20,82 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
     private readonly List<string> _skippedOptions = new();
     private bool _checkingSkipped = false;
     private int _skipIndex = -1;
+    // Set once "--" is seen. After that, every arg is a parameter, as in getopt.
+    private bool _endOfOptions = false;
 
     public IReadOnlyList<ISerdeInfo> HelpInfos => _helpInfos;
 
     public ITypeDeserializer ReadType(ISerdeInfo typeInfo)
     {
+        if (typeInfo.Kind == InfoKind.List)
+        {
+            // Only variadic parameters are collections, so the list belongs to the current command.
+            return new DeserializeCollection(this, _commandStack[^1]);
+        }
         var cmd = DeserializeType.ParseCommand(typeInfo);
         _commandStack.Add(cmd);
         return new DeserializeType(this, cmd);
+    }
+
+    /// <summary>
+    /// Consume the current arg if it is "--" or a help flag, which apply wherever they appear.
+    /// </summary>
+    private bool TryConsumeSpecialArg(ISerdeInfo commandInfo)
+    {
+        if (_endOfOptions)
+        {
+            return false;
+        }
+        var arg = _args[_argIndex];
+        if (arg == "--")
+        {
+            _endOfOptions = true;
+            _argIndex++;
+            return true;
+        }
+        if (_handleHelp && arg is "-h" or "--help")
+        {
+            _helpInfos.Add(commandInfo);
+            _argIndex++;
+            return true;
+        }
+        return false;
+    }
+
+    private bool IsOption(string arg) => !_endOfOptions && arg.StartsWith('-');
+
+    /// <summary>
+    /// Check whether the current arg is an option of the command at <paramref name="depth"/> in
+    /// the command stack, or of any of its parents. If so, record the option and its value in
+    /// <paramref name="skipped"/> and advance past them. The value can't be parsed yet because the
+    /// field belongs to a type that isn't being read right now.
+    /// </summary>
+    private bool TrySkipOption(int depth, List<string> skipped)
+    {
+        var arg = _args[_argIndex];
+        for (int ci = depth; ci >= 0; ci--)
+        {
+            foreach (var option in _commandStack[ci].Options)
+            {
+                if (option.FlagNames.Contains(arg))
+                {
+                    if (option.HasArg && _argIndex + 1 == _args.Length)
+                    {
+                        throw new ArgumentSyntaxException($"Option '{arg}' requires a value.");
+                    }
+                    skipped.Add(arg);
+                    _argIndex++;
+                    // If this is not a bool flag, we need to skip the next arg as well
+                    if (option.HasArg)
+                    {
+                        skipped.Add(_args[_argIndex]);
+                        _argIndex++;
+                    }
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     public bool ReadBool()
