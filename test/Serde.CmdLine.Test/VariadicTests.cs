@@ -70,6 +70,15 @@ public sealed partial class VariadicTests
     }
 
     [Fact]
+    public void UnknownOptionAfterSkippedOption()
+    {
+        // -v is held back for CopyCommand when -x fails. The error must name -x, not -v.
+        string[] testArgs = [ "dest", "a.txt", "-v", "-x" ];
+        var ex = Assert.Throws<ArgumentSyntaxException>(() => CmdLine.ParseRaw<CopyCommand>(testArgs));
+        Assert.Equal("Unexpected argument: '-x'", ex.Message);
+    }
+
+    [Fact]
     public void OptionMissingValueBetweenValues()
     {
         string[] testArgs = [ "dest", "a.txt", "-o" ];

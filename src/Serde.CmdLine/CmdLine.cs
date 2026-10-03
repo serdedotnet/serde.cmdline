@@ -33,6 +33,7 @@ public static class CmdLine
             }
             else
             {
+                deserializer.CheckAllArgsConsumed();
                 return new ParsedArgsOrHelpInfos<T>.Parsed(cmd);
             }
         }
@@ -57,7 +58,9 @@ public static class CmdLine
         try
         {
             using var deserializer = new Deserializer(args, handleHelp: false);
-            return T.Instance.Deserialize(deserializer);
+            var cmd = T.Instance.Deserialize(deserializer);
+            deserializer.CheckAllArgsConsumed();
+            return cmd;
         }
         catch (DeserializeException e)
         {

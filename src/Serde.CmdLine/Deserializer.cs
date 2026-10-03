@@ -165,11 +165,17 @@ internal sealed partial class Deserializer(string[] args, bool handleHelp) : IDe
     public UInt128 ReadU128() => UInt128.Parse(ReadString(), CultureInfo.InvariantCulture);
     public void ReadBytes(IBufferWriter<byte> writer) => throw new NotImplementedException();
 
-    public void Dispose()
+    /// <summary>
+    /// Check that every skipped option was read by the command that owns it. Call this only after
+    /// deserialization succeeds, so it can't hide an earlier error.
+    /// </summary>
+    public void CheckAllArgsConsumed()
     {
         if (_skippedOptions.Count > 0)
         {
             throw new ArgumentSyntaxException($"Unexpected argument: '{_skippedOptions[0]}'");
         }
     }
+
+    public void Dispose() { }
 }
