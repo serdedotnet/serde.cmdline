@@ -35,10 +35,17 @@ using Serde;
 using Serde.CmdLine;
 using Spectre.Console;
 
-if (!CmdLine.TryParse<Pkg>(args, AnsiConsole.Console, out var pkg))
+Pkg pkg;
+switch (CmdLine.Parse<Pkg>(args, AnsiConsole.Console))
 {
-    // Help or an error has been printed. TryParse returns false for --help too (#74).
-    return 1;
+    case CmdLine.ParseResult<Pkg>.Parsed(var parsed):
+        pkg = parsed;
+        break;
+    case CmdLine.ParseResult<Pkg>.HelpShown:
+        return 0;
+    default:
+        // The error and the help have been printed.
+        return 1;
 }
 
 switch (pkg.Command)
