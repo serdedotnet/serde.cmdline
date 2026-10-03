@@ -33,6 +33,7 @@ public static class CmdLine
             }
             else
             {
+                deserializer.CheckAllArgsConsumed();
                 return new ParsedArgsOrHelpInfos<T>.Parsed(cmd);
             }
         }
@@ -57,7 +58,9 @@ public static class CmdLine
         try
         {
             using var deserializer = new Deserializer(args, handleHelp: false);
-            return T.Instance.Deserialize(deserializer);
+            var cmd = T.Instance.Deserialize(deserializer);
+            deserializer.CheckAllArgsConsumed();
+            return cmd;
         }
         catch (DeserializeException e)
         {
@@ -149,7 +152,15 @@ public static class CmdLine
                         continue;
                     }
                     string? desc = GetDescription(namedArgs2);
-                    args.Add(($"<{paramName}>", desc));
+#pragma warning disable SerdeExperimentalFieldInfo
+                    var paramInfo = targetInfo.GetFieldInfo(fieldIndex);
+                    if (paramInfo.Kind == InfoKind.Nullable)
+                    {
+                        paramInfo = paramInfo.GetFieldInfo(0);
+                    }
+#pragma warning restore SerdeExperimentalFieldInfo
+                    var variadic = paramInfo.Kind == InfoKind.List ? "..." : "";
+                    args.Add(($"<{paramName}>{variadic}", desc));
                 }
                 else if (attr is { AttributeType: { Name: nameof(CommandGroupAttribute) },
                                    ConstructorArguments: [ { Value: string commandName }],

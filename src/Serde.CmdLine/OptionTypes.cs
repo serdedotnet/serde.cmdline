@@ -44,6 +44,7 @@ internal record struct CommandGroup(
 internal record struct Parameter(int Ordinal, int FieldIndex);
 
 internal record struct Command(
+    ISerdeInfo Info,
     ImmutableArray<Option> Options,
     ImmutableArray<SubCommand> SubCommands,
     ImmutableArray<CommandGroup> CommandGroups,
